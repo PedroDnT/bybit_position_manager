@@ -35,4 +35,4 @@ jobs:
           BYBIT_API_SECRET: ${{ secrets.BYBIT_API_SECRET }}
         run: |
           source venv/bin/activate
-          python risk-manager.py
+          python -m market_analysis
