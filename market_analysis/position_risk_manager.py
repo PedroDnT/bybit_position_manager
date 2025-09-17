@@ -19,11 +19,17 @@ import datetime as dt
 from typing import Dict, List, Any, Optional
 import pandas as pd
 import numpy as np
+
+# Some versions of ccxt's vendored dependencies attempt to call `git` during import
+# if version metadata is missing, which can hang on systems without developer tools.
+# Pretend version information is available to bypass that lookup.
+os.environ.setdefault("SETUPTOOLS_SCM_PRETEND_VERSION", "0.0.0")
+
 import ccxt
 from dotenv import load_dotenv
 
 # Import position fetching functionality
-from .get_position import fetch_bybit_positions
+from .get_position import fetch_bybit_positions, fetch_bybit_account_metrics
 from .config import settings
 
 # Import volatility analysis functions
@@ -56,6 +62,7 @@ class PositionRiskManager:
         self.sandbox = sandbox
         self.positions = []
         self.risk_analysis = {}
+        self.account_metrics: Dict[str, Any] = {}
         self.cfg = settings
         
         # Centralized exchange object creation
@@ -74,19 +81,23 @@ class PositionRiskManager:
                 'defaultType': 'linear',
             }
         })
+        # Keep HTTP calls snappy so missing network credentials fail fast
+        self.exchange.timeout = int(self.cfg.get('risk', {}).get('exchange_timeout_ms', 10000))
+        self.exchange.enableRateLimit = True
 
     def fetch_positions(self) -> List[Dict[str, Any]]:
         """Fetch current open positions."""
         print("=" * 80)
         print("Fetching current open positions...")
         print("=" * 80)
-        
+
         self.positions = fetch_bybit_positions(self.exchange)
-        
+        self.account_metrics = fetch_bybit_account_metrics(self.exchange)
+
         if not self.positions:
             print("No open positions found.")
             return []
-            
+
         print(f"Found {len(self.positions)} open position(s)")
         return self.positions
     
@@ -346,7 +357,33 @@ class PositionRiskManager:
         dollar_risk = optimal_dollar_risk
         dollar_reward = optimal_dollar_reward
         rr_ratio = dollar_reward / dollar_risk if dollar_risk > 0 else 0
-        
+
+        # Position health assessment & recommended action
+        pnl_pct = position.get('percentage')
+        try:
+            pnl_pct = float(pnl_pct) if pnl_pct is not None else 0.0
+        except (TypeError, ValueError):
+            pnl_pct = 0.0
+
+        health = 'NORMAL'
+        action = 'Set SL/TP as recommended'
+
+        if liq_buffer_safe is False:
+            health = 'CRITICAL'
+            action = 'Reduce exposure immediately – stop is too close to liquidation'
+        elif pnl_pct <= -5.0:
+            health = 'CRITICAL'
+            action = 'Cut risk or close position – loss beyond 5%'
+        elif pnl_pct <= -2.0:
+            health = 'WARNING'
+            action = 'Tighten stop / reconsider thesis – drawdown beyond 2%'
+        elif pnl_pct >= 0.0:
+            health = 'PROFITABLE'
+            action = 'Trail stop or scale out to lock in gains'
+        elif rr_ratio < 1.2:
+            health = 'WARNING'
+            action = 'Re-evaluate – reward is not compensating for risk'
+
         return {
             'symbol': symbol,
             'side': side,
@@ -400,6 +437,8 @@ class PositionRiskManager:
             'risk_reward_ratio': rr_ratio,
             'liquidation_buffer_safe': liq_buffer_safe,
             'liquidation_buffer_ratio': liq_buffer_ratio,
+            'position_health': health,
+            'action_required': action,
         }
     
     def _get_default_risk_params(self, position: Dict[str, Any]) -> Dict[str, Any]:
@@ -448,10 +487,11 @@ class PositionRiskManager:
         portfolio_metrics = self._calculate_portfolio_metrics()
         self.risk_analysis['portfolio'] = portfolio_metrics
         self._apply_portfolio_correlation_cap()
-        
+
         return {
             'positions': self.risk_analysis,
-            'portfolio': portfolio_metrics
+            'portfolio': portfolio_metrics,
+            'account': self.account_metrics
         }
     
     def _calculate_portfolio_metrics(self) -> Dict[str, Any]:
@@ -524,18 +564,23 @@ class PositionRiskManager:
  
     def generate_report(self) -> str:
         """Generate comprehensive risk management report."""
-        return generate_report(self.risk_analysis, self.positions, self.cfg)
+        return generate_report(
+            self.risk_analysis,
+            self.positions,
+            self.cfg,
+            account_metrics=self.account_metrics
+        )
     
     def export_to_json(self, filename: str = "risk_analysis.json"):
         """Export risk analysis to JSON file."""
         output = {
             'timestamp': dt.datetime.now(dt.timezone.utc).isoformat(),
             'positions': self.risk_analysis,
-            'portfolio': self._calculate_portfolio_metrics() if self.risk_analysis else {}
+            'portfolio': self._calculate_portfolio_metrics() if self.risk_analysis else {},
+            'account': self.account_metrics
         }
         
         with open(filename, 'w') as f:
             json.dump(output, f, indent=2, default=str)
         
         print(f"\nRisk analysis exported to {filename}")
-

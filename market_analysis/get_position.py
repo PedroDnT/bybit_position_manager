@@ -18,6 +18,7 @@ Note: This script only reads position data and does not execute any trades.
 import os
 import json
 from typing import Dict, List, Any
+import datetime as dt
 
 try:
     import ccxt  # type: ignore
@@ -111,3 +112,52 @@ def fetch_bybit_account_balance(exchange: ccxt.Exchange) -> Dict[str, Any]:
     except Exception as exc:
         print(f"Error: Failed to fetch Bybit account balance: {exc}")
         return {}
+
+
+def fetch_bybit_account_metrics(exchange: ccxt.Exchange) -> Dict[str, Any]:
+    """Return enriched Bybit account metrics including today's PnL."""
+
+    account_info = fetch_bybit_account_balance(exchange)
+
+    # Parse basic balance fields with safe fallbacks
+    def _to_float(value: Any) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    metrics: Dict[str, Any] = {
+        'total_equity': _to_float(account_info.get('total_equity')),
+        'total_wallet_balance': _to_float(account_info.get('total_wallet_balance')),
+        'total_unrealized_pnl': _to_float(account_info.get('total_unrealized_pnl')),
+        'available_balance': _to_float(account_info.get('available_balance')),
+        'total_margin_balance': _to_float(account_info.get('total_margin_balance')),
+        'total_initial_margin': _to_float(account_info.get('total_initial_margin')),
+    }
+
+    # Attempt to pull today's realized PnL via the ledger endpoint
+    today_realized = 0.0
+    today_fees = 0.0
+    try:
+        start_of_day = dt.datetime.now(dt.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        since = int(start_of_day.timestamp() * 1000)
+        ledger_entries = exchange.fetch_ledger(since=since, limit=200)
+
+        for entry in ledger_entries or []:
+            entry_type = entry.get('type') or entry.get('info', {}).get('type')
+            amount = _to_float(entry.get('amount'))
+
+            if entry_type in {'realizedpnl', 'pnl', 'settlement'}:
+                today_realized += amount
+            elif entry_type in {'fee', 'commission'}:
+                today_fees += amount
+
+    except Exception as exc:
+        # Ledger access is optional – log and continue with zeros
+        print(f"Warning: unable to fetch ledger entries for PnL calculation: {exc}")
+
+    metrics['todays_realized_pnl'] = today_realized
+    metrics['todays_fees'] = today_fees
+    metrics['todays_total_pnl'] = today_realized + metrics['total_unrealized_pnl']
+
+    return metrics

@@ -33,7 +33,12 @@ def _calculate_portfolio_metrics(positions: List[Dict[str, Any]], risk_analysis:
     }
 
 
-def generate_report(risk_analysis: Dict[str, Any], positions: List[Dict[str, Any]], cfg: dict) -> str:
+def generate_report(
+    risk_analysis: Dict[str, Any],
+    positions: List[Dict[str, Any]],
+    cfg: dict,
+    account_metrics: Dict[str, Any] | None = None,
+) -> str:
     """Generate comprehensive risk management report."""
     if not risk_analysis:
         return "No positions to analyze."
@@ -58,6 +63,17 @@ def generate_report(risk_analysis: Dict[str, Any], positions: List[Dict[str, Any
 
         if portfolio.get('positions_at_risk'):
             report.append(f"\n⚠️  Positions at Risk: {', '.join(portfolio['positions_at_risk'])}")
+
+    # Account overview
+    if account_metrics:
+        report.append("\n🏦 ACCOUNT OVERVIEW")
+        report.append("-" * 40)
+        report.append(f"Total Equity: ${account_metrics.get('total_equity', 0):,.2f}")
+        report.append(f"Wallet Balance: ${account_metrics.get('total_wallet_balance', 0):,.2f}")
+        report.append(f"Available Balance: ${account_metrics.get('available_balance', 0):,.2f}")
+        report.append(f"Total Unrealized PnL: ${account_metrics.get('total_unrealized_pnl', 0):,.2f}")
+        report.append(f"Today's Realized PnL: ${account_metrics.get('todays_realized_pnl', 0):,.2f}")
+        report.append(f"Today's Combined PnL: ${account_metrics.get('todays_total_pnl', 0):,.2f}")
 
     # Individual position analysis
     report.append("\n" + "=" * 80)

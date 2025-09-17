@@ -27,6 +27,14 @@ def main():
     print("\n" + "=" * 80)
     print("QUICK REFERENCE TABLE")
     print("=" * 80)
+
+    if manager.account_metrics:
+        metrics = manager.account_metrics
+        print(f"Account Equity: ${metrics.get('total_equity', 0):,.2f}")
+        print(f"Wallet Balance: ${metrics.get('total_wallet_balance', 0):,.2f}")
+        print(f"Today's Realized PnL: ${metrics.get('todays_realized_pnl', 0):,.2f}")
+        print(f"Today's Total PnL (Realized + Unrealized): ${metrics.get('todays_total_pnl', 0):,.2f}")
+        print("-" * 80)
     print(f"{'Symbol':<15} {'Side':<5} {'Entry':<10} {'SL':<10} {'TP':<10} {'R:R':<6} {'Risk%':<7} {'k/m':<9}")
     print("-" * 80)
 

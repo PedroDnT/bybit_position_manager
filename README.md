@@ -11,6 +11,7 @@ This system provides sophisticated risk management for cryptocurrency trading by
 - **Dynamic SL/TP Calculation**: Calculates optimal stop-loss and take-profit levels based on volatility
 - **Position Sizing**: Recommends optimal position sizes based on target risk
 - **Portfolio Risk Assessment**: Analyzes overall portfolio risk and provides actionable recommendations
+- **Account Overview**: Displays total equity, available balance, and today's realized/unrealized PnL
 - **Correlation Analysis**: Identifies correlated positions and applies cluster risk caps
 - **Configuration Management**: Dynamic settings loading with fallback to defaults
 
@@ -308,7 +309,7 @@ STOP LOSS: $0.458600 (-0.35% from entry)
   ✅ Safe from liquidation
 
 TAKE PROFIT: $0.463400 (0.69% from entry)
-  💰 Optimal Reward: $6.11
+  💰 Optimal Reward: $6.1/1
   💰 Current Reward: $1.06
   📊 Risk/Reward: 1.98:1
 ```
@@ -349,22 +350,23 @@ The system compares current vs optimal position sizes:
 ```toml
 [risk]
 base_target_pct = 0.025      # Base risk target (2.5%)
-min_target_pct = 0.015       # Minimum risk target (1.5%)
-max_target_pct = 0.040       # Maximum risk target (4.0%)
+min_target_pct = 0.020       # Minimum risk target (2.0%)
+max_target_pct = 0.030       # Maximum risk target (3.0%)
 use_dynamic = true           # Enable dynamic risk adjustment
+exchange_timeout_ms = 10000  # HTTP timeout for exchange calls (10 seconds)
 
 [stops]
-# Leverage-based SL multipliers
-k_sl_lev20 = 1.0            # Very tight stop for high leverage
-k_sl_lev15 = 1.2            # Medium leverage
-k_sl_lev10 = 1.5            # Lower leverage
-k_sl_low   = 1.8            # Low leverage
+# Leverage-based SL multipliers (professional 2–4× ATR range)
+k_sl_lev20 = 1.5            # High leverage: tighter stops
+k_sl_lev15 = 1.8            # Medium-high leverage
+k_sl_lev10 = 2.2            # Medium leverage
+k_sl_low   = 2.5            # Low leverage: wider stops allowed
 
 # Leverage-based TP multipliers
-m_tp_lev20 = 2.6            # Conservative target for high leverage
-m_tp_lev15 = 3.0            # Medium leverage
-m_tp_lev10 = 3.5            # Lower leverage
-m_tp_low   = 4.0            # Aggressive target for low leverage
+m_tp_lev20 = 3.0            # Conservative target for high leverage
+m_tp_lev15 = 3.5            # Medium-high leverage
+m_tp_lev10 = 4.0            # Medium leverage
+m_tp_low   = 4.5            # Aggressive target for low leverage
 ```
 
 ### Volatility Analysis Settings
