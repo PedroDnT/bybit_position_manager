@@ -136,7 +136,7 @@ def compute_atr(df, period=14):
     atr = tr.ewm(alpha=1/period, adjust=False).mean()
     return atr
 
-# ---------- Realized volatility + HAR-RV (same as before) ----------
+# ---------- Realized volatility + HAR-RV (standardized by timeframe) ----------
 
 def realized_variance_close_to_close(prices: pd.Series):
     """
@@ -166,17 +166,31 @@ def bars_per_year_from_interval(interval: str):
     bars_per_year = 365 * bars_per_day
     return bars_per_year
 
-def har_rv_nowcast(rv_series: pd.Series):
+def bars_per_day_from_interval(interval: str) -> int:
+    """Number of bars per 24h day for a given interval (24/7)."""
+    m = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "2h": 120, "4h": 240, "6h": 360, "8h": 480,
+         "12h": 720, "1d": 1440}
+    if interval not in m:
+        raise ValueError("Unsupported interval for bars_per_day.")
+    minutes = m[interval]
+    return 24*60 // minutes
+
+def har_rv_nowcast(rv_series: pd.Series, *, bars_per_day: int):
     """
-    Simple HAR-RV: RV_t+1 = c + bD*RV_D + bW*RV_W + bM*RV_M
+    Simple HAR-RV with timeframe-aware windows:
+    RV_{t+1} = c + bD*RV_D + bW*RV_W + bM*RV_M
+    Where RV_D is mean RV over one day of bars, RV_W over 7 days, RV_M over ~30 days.
     Returns: nowcast of next-bar RV (and sigma).
     """
     eps = 1e-12
     y = np.log(rv_series.shift(-1) + eps)
+    D = int(bars_per_day)
+    W = int(bars_per_day * 7)
+    M = int(bars_per_day * 30)
     X = pd.DataFrame(index=rv_series.index)
-    X["RV_D"] = np.log(rv_series.rolling(window=24, min_periods=24).mean() + eps)
-    X["RV_W"] = np.log(rv_series.rolling(window=24*7, min_periods=24*7).mean() + eps)
-    X["RV_M"] = np.log(rv_series.rolling(window=24*30, min_periods=24*30).mean() + eps)
+    X["RV_D"] = np.log(rv_series.rolling(window=D, min_periods=D).mean() + eps)
+    X["RV_W"] = np.log(rv_series.rolling(window=W, min_periods=W).mean() + eps)
+    X["RV_M"] = np.log(rv_series.rolling(window=M, min_periods=M).mean() + eps)
 
     df = pd.concat([y, X], axis=1).dropna()
     if len(df) < 200:
@@ -188,10 +202,15 @@ def har_rv_nowcast(rv_series: pd.Series):
 
     beta = np.linalg.lstsq(Xmat, Y, rcond=None)[0]
 
+    # Build last sample with proper windows
+    rv_rolling = rv_series.rolling
+    last_D = float(rv_rolling(D).mean().iloc[-1])
+    last_W = float(rv_rolling(W).mean().iloc[-1])
+    last_M = float(rv_rolling(M).mean().iloc[-1])
     last = pd.DataFrame({
-        "RV_D": [np.log(rv_series.rolling(24).mean().iloc[-1] + eps)],
-        "RV_W": [np.log(rv_series.rolling(24*7).mean().iloc[-1] + eps)],
-        "RV_M": [np.log(rv_series.rolling(24*30).mean().iloc[-1] + eps)]
+        "RV_D": [np.log(last_D + eps)],
+        "RV_W": [np.log(last_W + eps)],
+        "RV_M": [np.log(last_M + eps)]
     })
     X_last = np.array([1.0, last["RV_D"].iloc[0], last["RV_W"].iloc[0], last["RV_M"].iloc[0]])
     log_rv_next = float(X_last @ beta)
@@ -205,7 +224,9 @@ def sigma_ann_and_sigma_H_from_har(prices: pd.Series, interval="1h", horizon_hou
     """
     rv, rets = realized_variance_close_to_close(prices)
     rv = rv.dropna()
-    rv_next, sigma_bar = har_rv_nowcast(rv)
+    # Use timeframe-aware HAR windows
+    bpd = bars_per_day_from_interval(interval)
+    rv_next, sigma_bar = har_rv_nowcast(rv, bars_per_day=bpd)
     bars_year = bars_per_year_from_interval(interval)
     sigma_ann = realized_vol_annualized_from_bar_sigma(sigma_bar, bars_year)
 
@@ -249,39 +270,61 @@ def blended_sigma_h(sigma_ann_garch: float | None,
                     sigma_ann_har: float | None,
                     atr_abs: float,
                     price: float,
-                    cfg: dict) -> float:
+                    cfg: dict,
+                    *,
+                    bar_hours: int) -> float:
+    """
+    Blend horizon-volatilities from GARCH, HAR, and ATR into a single horizon sigma in ABSOLUTE price units.
+    Internally:
+    - Convert GARCH/HAR annualized sigma to horizon FRACTIONAL sigma.
+    - Convert ATR per-bar absolute move to horizon FRACTIONAL sigma via sqrt(N) with N = horizon_hours / bar_hours,
+      optionally scaled by atr_to_sigma_factor for calibration.
+    - Blend the FRACTIONAL components by weights, then multiply by price to return ABSOLUTE horizon sigma.
+    """
     vol_cfg = (cfg or {}).get('vol', {})
     horizon_hours = int(vol_cfg.get('horizon_hours', 4))
     w_g = float(vol_cfg.get('blend_w_garch', 0.30))
     w_h = float(vol_cfg.get('blend_w_har', 0.40))
     w_a = float(vol_cfg.get('blend_w_atr', 0.30))
     outlier_ratio = float(vol_cfg.get('garch_har_outlier_ratio', 2.0))
+    atr_to_sigma_factor = float(vol_cfg.get('atr_to_sigma_factor', 1.0))
 
-    sigH_garch = _ann_to_horizon_sigma(sigma_ann_garch, horizon_hours) if sigma_ann_garch else None
-    sigH_har   = _ann_to_horizon_sigma(sigma_ann_har,   horizon_hours) if sigma_ann_har else None
-    sigH_atr   = float(atr_abs)
+    # FRACTIONAL horizon sigmas
+    sigH_garch_frac = _ann_to_horizon_sigma(sigma_ann_garch, horizon_hours) if sigma_ann_garch else None
+    sigH_har_frac   = _ann_to_horizon_sigma(sigma_ann_har,   horizon_hours) if sigma_ann_har else None
 
+    # ATR per bar -> fractional per bar -> horizon fractional via sqrt(N)
+    if price > 0 and bar_hours > 0:
+        sigma_bar_atr_frac = (float(atr_abs) / float(price)) * atr_to_sigma_factor
+        n_bars = max(horizon_hours / float(bar_hours), 1e-9)
+        sigH_atr_frac = sigma_bar_atr_frac * math.sqrt(n_bars)
+    else:
+        sigH_atr_frac = 0.0
+
+    # Outlier downweight for GARCH vs HAR in annualized domain (uses input annualized sigmas)
     if sigma_ann_har and sigma_ann_garch and (sigma_ann_garch > outlier_ratio * sigma_ann_har):
         w_g = w_g * 0.3
         s = w_g + w_h + w_a
         w_g, w_h, w_a = w_g/s, w_h/s, w_a/s
 
-    parts = []
+    parts_frac = []
     weights = []
-    if sigH_garch is not None:
-        parts.append(sigH_garch); weights.append(w_g)
-    if sigH_har is not None:
-        parts.append(sigH_har);   weights.append(w_h)
+    if sigH_garch_frac is not None:
+        parts_frac.append(sigH_garch_frac); weights.append(w_g)
+    if sigH_har_frac is not None:
+        parts_frac.append(sigH_har_frac);   weights.append(w_h)
     # ATR available always
-    parts.append(sigH_atr); weights.append(w_a)
+    parts_frac.append(sigH_atr_frac); weights.append(w_a)
 
-    if not parts or sum(weights) == 0:
-        return sigH_atr
+    if not parts_frac or sum(weights) == 0:
+        return float(price) * sigH_atr_frac
+
     # Normalize weights of available components
     s = sum(weights)
     weights = [w/s for w in weights]
-    sigH_blend = sum(w*p for w,p in zip(weights, parts))
-    return sigH_blend
+    sigH_blend_frac = sum(w*p for w,p in zip(weights, parts_frac))
+    sigH_blend_abs = float(price) * sigH_blend_frac
+    return sigH_blend_abs
 
 # ---------- New: GARCH sanity validator ----------
 

@@ -208,7 +208,8 @@ class PositionRiskManager:
             volatility_metrics.get('har_sigma_ann'),
             atr_abs=atr,
             price=entry_price,
-            cfg=self.cfg
+            cfg=self.cfg,
+            bar_hours=_hours_per_bar(timeframe)
         )
         primary_sigma_frac = sigmaH_blend_abs / entry_price
         vol_method = "VOL_BLEND"
