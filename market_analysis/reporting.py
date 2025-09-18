@@ -134,7 +134,13 @@ def generate_report(
         report.append("  Scale-outs:")
         report.append(f"    • Close {analysis['scaleout_frac1']*100:.0f}% @ {analysis['tp1']:.6f}")
         report.append(f"    • Close {analysis['scaleout_frac2']*100:.0f}% @ {analysis['tp2']:.6f}")
-        report.append(f"    • Leave {analysis['leave_runner_frac']*100:.0f}% runner; Trail suggestion: {analysis['trail_stop_suggestion']:.6f}")
+        trail_activation = analysis.get('trail_stop_suggestion')
+        current_px = analysis.get('current_price', 0.0)
+        callback_pct = (abs(trail_activation - current_px) / current_px * 100.0) if (trail_activation and current_px) else 0.0
+        report.append(
+            f"    • Leave {analysis['leave_runner_frac']*100:.0f}% runner; "
+            f"Trail activation: ${trail_activation:.6f} (callback ~{callback_pct:.2f}%)"
+        )
 
         # Professional confidence analysis
         report.append("  Professional Analysis:")
