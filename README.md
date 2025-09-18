@@ -14,7 +14,6 @@ This system provides sophisticated risk management for cryptocurrency trading by
 - **Account Overview**: Displays total equity, available balance, and today's realized/unrealized PnL
 - **Correlation Analysis**: Identifies correlated positions and applies cluster risk caps
 - **Configuration Management**: Dynamic settings loading with fallback to defaults
-- **Automated Order Execution**: Optional helper to push stop-loss / take-profit / trailing-stop orders via Bybit's API
 
 ## 📁 Project Structure
 
@@ -105,25 +104,6 @@ A suite of unit tests is included to verify the core calculation logic. To run t
     ```bash
     pytest -v
     ```
-
-## 🆕 Recent Updates
-
-- Kelly verbose output: Enabled by default. When `risk.verbose_kelly = true` (default), each analyzed position logs a single-line summary with Kelly inputs and result: `Kelly: p_win=0.632, odds=1.850, f*=0.3125, risk$=125.00, mode=cap`.
-- Kelly configuration: `risk.use_kelly = true` (default), `risk.kelly_mode = "cap" | "override"` (default: `cap`), `risk.kelly_scale` (default: `0.5`), optional `risk.kelly_fraction_cap`, and `risk.kelly_decimal_precision` for high-precision math.
-- R:R fallback logic: If computed dollar risk is zero, the system now falls back to the structural ratio `TP_distance / SL_distance` to avoid misleading `0.0:1` displays.
-- Consistent numeric formatting: Quick Reference Table shows R:R with two decimals to match the report; Kelly line formats as `p_win` (3 decimals), `odds` (3 decimals), `f*` (4 decimals), and `risk$` (2 decimals) for easy comparison.
-
-To toggle verbosity, set in your `settings.toml` under the `[risk]` section:
-
-```toml
-[risk]
-use_kelly = true
-kelly_mode = "cap"      # or "override"
-verbose_kelly = true     # set to false to silence the Kelly line per-position
-kelly_scale = 0.5        # practitioner half-Kelly
-# kelly_fraction_cap = 0.25
-# kelly_decimal_precision = 28
-```
 
 ## 🔧 Core Components & Logic Flow
 
@@ -414,21 +394,6 @@ cluster_risk_cap_pct = 0.5  # Max risk per cluster (% of total)
 ### 1. Basic Position Analysis
 ```bash
 python position_risk_manager.py
-```
-
-### 1b. Push risk orders after analysis
-```python
-from market_analysis.position_risk_manager import PositionRiskManager
-
-manager = PositionRiskManager()
-manager.fetch_positions()
-manager.display_positions()         # quick view in notebooks
-manager.analyze_all_positions()
-
-# Review the report first, then submit protective orders (dry run first!)
-manager.execute_risk_orders(dry_run=True)
-# manager.execute_risk_orders(dry_run=False)
-manager.display_orders()            # confirm submitted orders
 ```
 
 ### 2. Custom Volatility Analysis

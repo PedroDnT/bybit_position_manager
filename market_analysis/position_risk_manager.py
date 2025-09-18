@@ -19,7 +19,6 @@ import datetime as dt
 from typing import Dict, List, Any, Optional
 import pandas as pd
 import numpy as np
-from decimal import Decimal, getcontext, ROUND_HALF_UP
 
 # Some versions of ccxt's vendored dependencies attempt to call `git` during import
 # if version metadata is missing, which can hang on systems without developer tools.
@@ -28,11 +27,9 @@ os.environ.setdefault("SETUPTOOLS_SCM_PRETEND_VERSION", "0.0.0")
 
 import ccxt
 from dotenv import load_dotenv
-from pathlib import Path
 
 # Import position fetching functionality
 from .get_position import fetch_bybit_positions, fetch_bybit_account_metrics
-from .order_executor import RiskOrderExecutor
 from .config import settings
 
 # Import volatility analysis functions
@@ -70,166 +67,23 @@ class PositionRiskManager:
         
         # Centralized exchange object creation
         load_dotenv()
-        # Load .env from project root explicitly to avoid find_dotenv issues
-        # Load .env from project root explicitly to avoid find_dotenv issues
-        project_root = Path(__file__).resolve().parents[1]
-        load_dotenv(project_root / ".env")
-        # Prefer demo/testnet keys in sandbox mode
-        if self.sandbox:
-            api_key = (
-                os.getenv('BYBIT_API_KEY_DEMO')
-                or os.getenv('BYBIT_TESTNET_API_KEY')
-                or os.getenv('BYBIT_SANDBOX_API_KEY')
-            )
-            api_secret = (
-                os.getenv('BYBIT_API_SECRET_DEMO')
-                or os.getenv('BYBIT_TESTNET_API_SECRET')
-                or os.getenv('BYBIT_SANDBOX_API_SECRET')
-            )
-            if not api_key or not api_secret:
-                raise ValueError(
-                    'BYBIT_API_KEY_DEMO and BYBIT_API_SECRET_DEMO (or BYBIT_TESTNET_API_KEY/SECRET) must be set in .env for sandbox/testnet'
-                )
-        else:
-            api_key = os.getenv('BYBIT_API_KEY')
-            api_secret = os.getenv('BYBIT_API_SECRET')
-            if not api_key or not api_secret:
-                raise ValueError('BYBIT_API_KEY and BYBIT_API_SECRET must be set in .env file')
+        api_key = os.getenv("BYBIT_API_KEY")
+        api_secret = os.getenv("BYBIT_API_SECRET")
+
+        if not api_key or not api_secret:
+            raise ValueError("BYBIT_API_KEY and BYBIT_API_SECRET must be set in .env file")
 
         self.exchange = ccxt.bybit({
             'apiKey': api_key,
             'secret': api_secret,
+            'sandbox': self.sandbox,
             'options': {
                 'defaultType': 'linear',
             }
         })
-        # Ensure Bybit testnet endpoints are used when sandbox is True
-        try:
-            self.exchange.setSandboxMode(self.sandbox)
-        except Exception:
-            # Older ccxt versions may not expose setSandboxMode; ignore if unavailable
-            pass
         # Keep HTTP calls snappy so missing network credentials fail fast
         self.exchange.timeout = int(self.cfg.get('risk', {}).get('exchange_timeout_ms', 10000))
         self.exchange.enableRateLimit = True
-
-    # ---------- Kelly Criterion helper (precise math + verification) ----------
-    def _compute_kelly_from_barriers(self,
-                                     sl_distance: float,
-                                     tp_distance: float,
-                                     equity: float,
-                                     risk_cfg: Dict[str, Any],
-                                     confidence_score: float | None = None) -> Dict[str, Any]:
-        """
-        Compute Kelly fraction using canonical formula f* = p - (1-p)/b with
-        p estimated via gambler's ruin for a driftless Brownian motion hitting
-        asymmetric barriers: p(win TP before SL) = SL_distance / (SL_distance + TP_distance).
-
-        Uses Decimal high precision for numerical stability, verifies all steps,
-        and returns a structured dictionary with intermediate values for auditability.
-        """
-        # Set high precision for Kelly-related calculations
-        getcontext().prec = int(risk_cfg.get('kelly_decimal_precision', 28))
-
-        checks: List[str] = []
-        valid = True
-        notes: List[str] = []
-
-        try:
-            sl_d = Decimal(str(sl_distance))
-            tp_d = Decimal(str(tp_distance))
-            if sl_d <= 0 or tp_d <= 0:
-                valid = False
-                checks.append("Non-positive barrier distances")
-                return {
-                    'valid': False,
-                    'checks': checks,
-                    'p_win': 0.0,
-                    'odds_b': 0.0,
-                    'f_kelly_raw': 0.0,
-                    'f_kelly_scaled': 0.0,
-                    'risk_dollars_kelly': 0.0,
-                    'equity_basis': float(equity),
-                    'kelly_mode_used': risk_cfg.get('kelly_mode', 'cap'),
-                    'notes': ["SL/TP distances must be > 0"]
-                }
-
-            # p(win) under symmetric, driftless BM with barriers
-            p_barrier = sl_d / (sl_d + tp_d)
-            # odds b = payoff per unit loss
-            b_odds = tp_d / sl_d
-            # Confidence-blended p (optional)
-            w = Decimal(str(risk_cfg.get('kelly_p_blend_weight', 0.35)))
-            if confidence_score is not None and w > 0:
-                # Map score [-2..5] -> p_conf around 0.5, clipped to [0.35, 0.65]
-                s = Decimal(str(confidence_score))
-                p_conf = Decimal('0.5') + (s * Decimal('0.05'))
-                # clip
-                p_conf = max(Decimal('0.35'), min(Decimal('0.65'), p_conf))
-                p = (Decimal('1') - w) * p_barrier + w * p_conf
-            else:
-                p = p_barrier
-            q = Decimal('1') - p
-            # Kelly fraction
-            f_raw = p - (q / b_odds)
-
-            # Clip to [0, 1] to avoid negative/overconfident allocations
-            if f_raw < 0:
-                notes.append("Negative Kelly -> clipped to 0")
-                f_raw = Decimal('0')
-            if f_raw > 1:
-                notes.append("Kelly > 1 -> clipped to 1")
-                f_raw = Decimal('1')
-
-            # Apply practitioner scaling (half-Kelly by default)
-            scale = Decimal(str(risk_cfg.get('kelly_scale', 0.5)))
-            if scale < 0:
-                scale = Decimal('0')
-            f_scaled = (f_raw * scale)
-
-            # Optional absolute cap on Kelly fraction
-            f_cap = risk_cfg.get('kelly_fraction_cap', None)
-            if f_cap is not None:
-                f_cap_d = Decimal(str(f_cap))
-                if f_cap_d >= 0 and f_scaled > f_cap_d:
-                    notes.append("Kelly scaled fraction capped by kelly_fraction_cap")
-                    f_scaled = f_cap_d
-
-            # Risk dollars from equity basis
-            eq = Decimal(str(equity)) if equity is not None else Decimal('0')
-            risk_dollars = (f_scaled * eq).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-
-            checks.extend([
-                f"p in [0,1]: {Decimal('0') <= p <= Decimal('1')}",
-                f"b_odds > 0: {b_odds > 0}",
-                f"q = 1 - p: {abs((Decimal('1') - p) - q) < Decimal('1e-18')}"
-            ])
-
-            return {
-                'valid': valid,
-                'checks': checks,
-                'p_win': float(p),
-                'odds_b': float(b_odds),
-                'f_kelly_raw': float(f_raw),
-                'f_kelly_scaled': float(f_scaled),
-                'risk_dollars_kelly': float(risk_dollars),
-                'equity_basis': float(eq),
-                'kelly_mode_used': risk_cfg.get('kelly_mode', 'cap'),
-                'notes': notes,
-            }
-        except Exception as e:
-            return {
-                'valid': False,
-                'checks': checks + [f"Exception: {e}"],
-                'p_win': 0.0,
-                'odds_b': 0.0,
-                'f_kelly_raw': 0.0,
-                'f_kelly_scaled': 0.0,
-                'risk_dollars_kelly': 0.0,
-                'equity_basis': float(equity) if equity is not None else 0.0,
-                'kelly_mode_used': risk_cfg.get('kelly_mode', 'cap'),
-                'notes': ["Kelly computation failed"],
-            }
 
     def fetch_positions(self) -> List[Dict[str, Any]]:
         """Fetch current open positions."""
@@ -426,47 +280,7 @@ class PositionRiskManager:
         m_tp_eff = max(m_tp_eff, 2.5)  # Minimum 2.5× ATR for targets
         
         # Calculate SL/TP levels with optimal position sizing
-        # Base risk target from notional
-        target_risk_dollars_base = position['notional'] * risk_target_pct
-
-        # Pre-compute sigma-based distances for Kelly probability/odds
-        sigma_price = entry_price * primary_sigma_frac
-        sl_distance_pre = k_sl_eff * sigma_price
-        tp_distance_pre = m_tp_eff * sigma_price
-
-        # Kelly overlay (conservative by default): cap base risk by Kelly risk
-        risk_cfg_full = self.cfg.get('risk', {})
-        use_kelly = bool(risk_cfg_full.get('use_kelly', True))
-        kelly_mode = str(risk_cfg_full.get('kelly_mode', 'cap')).lower()  # 'cap' or 'override'
-        equity_basis = (
-            self.account_metrics.get('total_equity')
-            or self.account_metrics.get('total_wallet_balance')
-            or float(position.get('notional', 0.0))
-        )
-        kelly_info: Optional[Dict[str, Any]] = None
-        if use_kelly:
-            kelly_info = self._compute_kelly_from_barriers(
-                sl_distance=sl_distance_pre,
-                tp_distance=tp_distance_pre,
-                equity=float(equity_basis),
-                risk_cfg=risk_cfg_full,
-                confidence_score=score
-            )
-            if kelly_mode == 'override':
-                target_risk_dollars = kelly_info['risk_dollars_kelly'] if kelly_info.get('valid') else target_risk_dollars_base
-            else:  # cap mode
-                kelly_r = kelly_info['risk_dollars_kelly'] if kelly_info.get('valid') else target_risk_dollars_base
-                target_risk_dollars = min(target_risk_dollars_base, kelly_r)
-        else:
-            target_risk_dollars = target_risk_dollars_base
-
-        # Optional verbose logging for Kelly
-        if use_kelly and bool(risk_cfg_full.get('verbose_kelly', True)) and kelly_info is not None:
-            try:
-                print(f"  Kelly: p_win={kelly_info['p_win']:.3f}, odds={kelly_info['odds_b']:.3f}, f*={kelly_info['f_kelly_scaled']:.4f}, risk$={kelly_info['risk_dollars_kelly']:.2f}, mode={kelly_info['kelly_mode_used']}")
-            except Exception:
-                pass
-
+        target_risk_dollars = position['notional'] * risk_target_pct
         risk_params = sl_tp_and_size(
             entry_price=entry_price,
             sigma_H=primary_sigma_frac,
@@ -476,23 +290,6 @@ class PositionRiskManager:
             R=target_risk_dollars,
             tick_size=tick_size
         )
-        # Compute EV metrics using Kelly inputs and computed dollar risk/reward
-        ev_per_unit: Optional[float] = None
-        ev_dollars: Optional[float] = None
-        if kelly_info and kelly_info.get('valid'):
-            try:
-                p_win = float(kelly_info['p_win'])
-                q_loss = 1.0 - p_win
-                sl_dist = float(risk_params.get('SL_distance', 0.0))
-                tp_dist = float(risk_params.get('TP_distance', 0.0))
-                if sl_dist > 0 and tp_dist > 0:
-                    b_odds_live = tp_dist / sl_dist
-                    ev_per_unit = p_win * b_odds_live - q_loss
-                # Dollar EV given sizing and levels
-                if dollar_reward is not None and dollar_risk is not None:
-                    ev_dollars = p_win * float(dollar_reward) - q_loss * float(dollar_risk)
-            except Exception:
-                pass
         
         # Scale-out ladder
         scale_r1 = float(stops_cfg.get('scaleout_r1', 1.5))
@@ -559,12 +356,7 @@ class PositionRiskManager:
         
         dollar_risk = optimal_dollar_risk
         dollar_reward = optimal_dollar_reward
-        # Prefer dollar-based R:R when risk dollars > 0, otherwise fall back to structural TP/SL distances
-        rr_ratio = (
-            (dollar_reward / dollar_risk) if (dollar_risk is not None and dollar_risk > 0) else (
-                (risk_params.get('TP_distance', 0.0) / risk_params.get('SL_distance', 1e-12)) if risk_params.get('SL_distance', 0.0) > 0 else 0.0
-            )
-        )
+        rr_ratio = dollar_reward / dollar_risk if dollar_risk > 0 else 0
 
         # Position health assessment & recommended action
         pnl_pct = position.get('percentage')
@@ -647,17 +439,6 @@ class PositionRiskManager:
             'liquidation_buffer_ratio': liq_buffer_ratio,
             'position_health': health,
             'action_required': action,
-
-            # Kelly audit fields
-            'kelly': kelly_info,
-            'kelly_fraction': kelly_info.get('f_kelly_scaled') if kelly_info else None,
-            'kelly_risk_dollars': kelly_info.get('risk_dollars_kelly') if kelly_info else None,
-            'risk_target_dollars_base': target_risk_dollars_base,
-            'target_risk_dollars_used': target_risk_dollars,
-
-            # Expected value metrics
-            'expected_value_per_unit': ev_per_unit,
-            'expected_value_dollars': ev_dollars,
         }
     
     def _get_default_risk_params(self, position: Dict[str, Any]) -> Dict[str, Any]:
@@ -803,78 +584,3 @@ class PositionRiskManager:
             json.dump(output, f, indent=2, default=str)
         
         print(f"\nRisk analysis exported to {filename}")
-
-    # ------------------------------------------------------------------
-    # Order execution
-
-    def execute_risk_orders(
-        self,
-        *,
-        symbols: List[str] | None = None,
-        enable_trailing: bool = True,
-        dry_run: bool = False,
-    ):
-        """Submit stop-loss and take-profit orders for analyzed positions."""
-
-        if not self.positions or not self.risk_analysis:
-            raise ValueError("No positions analyzed. Run analyze_all_positions() first.")
-
-        executor = RiskOrderExecutor(self.exchange, dry_run=dry_run)
-
-        for position in self.positions:
-            symbol = position['symbol']
-            if symbols and symbol not in symbols:
-                continue
-
-            analysis = self.risk_analysis.get(symbol)
-            if not analysis or 'stop_loss' not in analysis:
-                continue
-
-            executor.submit_orders(position, analysis, enable_trailing=enable_trailing)
-
-    # ------------------------------------------------------------------
-    # Display helpers (handy for notebooks)
-
-    def display_positions(self):
-        """Return a DataFrame summarising currently cached positions and print it."""
-
-        if not self.positions:
-            print("No cached positions. Call fetch_positions() first.")
-            return pd.DataFrame()
-
-        df = pd.DataFrame(self.positions)
-        display_cols = [
-            'symbol',
-            'side',
-            'size',
-            'notional',
-            'entryPrice',
-            'markPrice',
-            'unrealizedPnl',
-            'percentage',
-            'leverage',
-        ]
-        df = df.reindex(columns=[c for c in display_cols if c in df.columns])
-        print(df)
-        return df
-
-    def display_orders(self, symbol: str | None = None):
-        """Fetch and display currently open orders from the exchange."""
-
-        try:
-            orders = self.exchange.fetch_open_orders(symbol)
-        except Exception as exc:
-            print(f"Failed to fetch open orders: {exc}")
-            return pd.DataFrame()
-
-        if not orders:
-            print("No open orders found.")
-            return pd.DataFrame()
-
-        df = pd.DataFrame(orders)
-        display_cols = [
-            col for col in ['id', 'symbol', 'type', 'side', 'amount', 'price', 'status', 'info']
-            if col in df.columns
-        ]
-        print(df[display_cols])
-        return df

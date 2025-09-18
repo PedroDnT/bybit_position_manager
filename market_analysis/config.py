@@ -16,10 +16,6 @@ def load_settings(path: str = DEFAULT_SETTINGS_PATH) -> dict:
     the example settings file if the primary one is not found.
     Returns an empty dictionary if neither can be loaded.
     """
-    # Avoid doing any file IO during certain packaging contexts
-    if os.environ.get("RISK_MANAGER_NO_IO") == "1":
-        return {}
-
     if not tomllib:
         print("Warning: tomllib is not available. Install with 'pip install tomli' for Python < 3.11.")
         return {}
