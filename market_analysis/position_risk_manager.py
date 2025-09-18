@@ -48,6 +48,7 @@ from .garch_vol_triggers import (
 from .utils import _hours_per_bar
 from .confidence import calculate_confidence_score
 from .reporting import generate_report, _calculate_portfolio_metrics
+from .adaptive_stop_loss import AdaptiveStopLossManager
 
 
 class PositionRiskManager:
@@ -90,6 +91,16 @@ class PositionRiskManager:
             self.cfg.get("risk", {}).get("exchange_timeout_ms", 10000)
         )
         self.exchange.enableRateLimit = True
+        
+        # Initialize adaptive stop-loss manager with config
+        adaptive_sl_config = {
+            'default_atr_multiplier': self.cfg.get('risk', {}).get('default_atr_multiplier', 2.0),
+            'min_atr_multiplier': self.cfg.get('risk', {}).get('min_atr_multiplier', 1.5),
+            'max_atr_multiplier': self.cfg.get('risk', {}).get('max_atr_multiplier', 4.0),
+            'trailing_activation_pct': self.cfg.get('risk', {}).get('trailing_activation_pct', 0.02),
+            'min_adjustment_pct': self.cfg.get('risk', {}).get('min_adjustment_pct', 0.005)
+        }
+        self.adaptive_sl_manager = AdaptiveStopLossManager(adaptive_sl_config, self.exchange)
 
     def fetch_positions(self) -> List[Dict[str, Any]]:
         """Fetch current open positions."""
@@ -519,6 +530,47 @@ class PositionRiskManager:
 
         for position in self.positions:
             analysis = self.analyze_position_volatility(position)
+            
+            # Apply adaptive stop-loss for existing positions
+            try:
+                # Get current market price and ATR for the position
+                current_price = float(position.get("markPrice", position["entryPrice"]))
+                atr = analysis.get("atr", 0.01)  # Use calculated ATR from analysis or default
+                
+                # Create market data DataFrame (simplified for now)
+                import pandas as pd
+                market_data = pd.DataFrame({
+                    'open': [current_price] * 20,
+                    'high': [current_price * 1.01] * 20,  # Simulate small price range
+                    'low': [current_price * 0.99] * 20,
+                    'close': [current_price] * 20,
+                    'volume': [1000] * 20,  # Dummy volume
+                    'timestamp': pd.date_range(end=pd.Timestamp.now(), periods=20, freq='1h')
+                })
+                
+                adaptive_stop = self.adaptive_sl_manager.calculate_adaptive_stop_loss(
+                    position, 
+                    current_price,
+                    atr,
+                    market_data
+                )
+                
+                # Update analysis with adaptive stop-loss levels
+                analysis.update({
+                    "adaptive_stop_loss": adaptive_stop.suggested_stop,
+                    "adaptive_trailing_stop": adaptive_stop.trailing_stop,
+                    "adaptive_needs_adjustment": adaptive_stop.needs_adjustment,
+                    "adaptive_adjustment_reason": adaptive_stop.adjustment_reason,
+                    "volatility_adjustment": adaptive_stop.volatility_adjustment,
+                    "adaptive_method": "CURRENT_PRICE_BASED"
+                })
+                
+                print(f"✓ Applied adaptive stop-loss for {position['symbol']}: ${adaptive_stop.suggested_stop:.6f}")
+                
+            except Exception as e:
+                print(f"⚠ Failed to calculate adaptive levels for {position['symbol']}: {e}")
+                analysis["adaptive_error"] = str(e)
+            
             self.risk_analysis[position["symbol"]] = analysis
 
         # Calculate portfolio-wide metrics and correlation caps
@@ -615,6 +667,64 @@ class PositionRiskManager:
                     analysis["portfolio_note"] = (
                         f"Cluster {cluster} risk capped {cluster_risk:.2f}→{max_cluster_risk:.2f} (ρ≥{corr_threshold})"
                     )
+
+    def update_stop_loss_orders(self, dry_run: bool = True) -> Dict[str, Any]:
+        """Update stop-loss orders for existing positions based on adaptive calculations.
+        
+        Args:
+            dry_run: If True, only simulate the orders without placing them
+            
+        Returns:
+            Dictionary with order update results
+        """
+        if not self.positions:
+            return {"error": "No positions to update"}
+            
+        results = {
+            "updated_orders": [],
+            "failed_orders": [],
+            "dry_run": dry_run
+        }
+        
+        for position in self.positions:
+            symbol = position["symbol"]
+            analysis = self.risk_analysis.get(symbol, {})
+            
+            if "adaptive_stop_loss" not in analysis:
+                results["failed_orders"].append({
+                    "symbol": symbol,
+                    "error": "No adaptive stop-loss calculated"
+                })
+                continue
+                
+            try:
+                order_result = self.adaptive_sl_manager.update_position_stop_loss(
+                    position, 
+                    analysis["adaptive_stop_loss"],
+                    dry_run=dry_run
+                )
+                
+                results["updated_orders"].append({
+                    "symbol": symbol,
+                    "side": position["side"],
+                    "new_stop_loss": analysis["adaptive_stop_loss"],
+                    "order_result": order_result
+                })
+                
+                if not dry_run:
+                    print(f"✓ Updated stop-loss for {symbol}: {analysis['adaptive_stop_loss']}")
+                else:
+                    print(f"✓ [DRY RUN] Would update stop-loss for {symbol}: {analysis['adaptive_stop_loss']}")
+                    
+            except Exception as e:
+                error_msg = f"Failed to update stop-loss for {symbol}: {e}"
+                print(f"✗ {error_msg}")
+                results["failed_orders"].append({
+                    "symbol": symbol,
+                    "error": str(e)
+                })
+        
+        return results
 
     def generate_report(self) -> str:
         """Generate comprehensive risk management report."""
