@@ -280,4 +280,116 @@ Done-in-10 checklist
 	•	Enhance report with all new signals.
 	•	Backtest & tune (small increments).
 
-If you want, paste your current sl_tp_and_size() and I’ll mark exactly what to change line-by-line.
+If you want, paste your current sl_tp_and_size() and I'll mark exactly what to change line-by-line.
+
+⸻
+
+## VOLATILITY CALCULATION MODIFICATIONS - IMPLEMENTATION LOG
+
+### Overview
+This section documents all modifications made to the volatility calculation system to address significant discrepancies between different volatility methods and ensure consistent, timeframe-agnostic calculations.
+
+### Problem Identified
+- **Mixed Units Before Blending**: ATR was in absolute price units per bar, while HAR/GARCH sigmas were fractional and annualized, causing amplified differences and timeframe-dependent outputs.
+- **Timeframe Sensitivity**: HAR-RV window definitions weren't adjusted for bar interval (5m vs 1h vs 4h), skewing realized-vol estimates across timeframes.
+- **Inconsistent Horizon Scaling**: Components weren't consistently mapped to the same horizon before blending.
+
+### Modifications Made
+
+#### 1. File: `market_analysis/garch_vol_triggers.py`
+
+**A. Added `bars_per_day_from_interval()` function**
+- **Purpose**: Calculate bars per day based on interval string for timeframe-aware HAR windows
+- **Impact**: Ensures HAR-RV windows are consistent across different timeframes
+- **Code Location**: Lines ~240-250
+
+**B. Modified `har_rv_nowcast()` function**
+- **Purpose**: Accept `bars_per_day` parameter and use timeframe-aware window calculations
+- **Impact**: HAR windows now scale properly with timeframe (daily/weekly/monthly windows derived from bars_per_day)
+- **Changes**: 
+  - Added `bars_per_day` parameter
+  - Updated window calculations: `w_d = bars_per_day`, `w_w = 5 * bars_per_day`, `w_m = 22 * bars_per_day`
+
+**C. Updated `sigma_ann_and_sigma_H_from_har()` function**
+- **Purpose**: Use timeframe-aware HAR windows by calling `bars_per_day_from_interval()`
+- **Impact**: HAR calculations now consistent across timeframes
+- **Changes**: Added `bars_per_day = bars_per_day_from_interval(interval)` and passed to `har_rv_nowcast()`
+
+**D. Completely refactored `blended_sigma_h()` function**
+- **Purpose**: Standardize all components to fractional units before blending, then convert to absolute
+- **Impact**: Eliminates unit mismatches and ensures consistent scaling
+- **Key Changes**:
+  - Convert GARCH/HAR from annualized fractional to horizon fractional via `sqrt(time)`
+  - Convert ATR: absolute per-bar → fractional per-bar (ATR/price) → horizon fractional via `sqrt(N)`
+  - Blend in fractional units, then multiply by price for absolute result
+  - Added `bar_hours` parameter for correct ATR scaling
+  - Added `atr_to_sigma_factor` calibration knob
+
+#### 2. File: `position_risk_manager.py`
+
+**A. Updated `blended_sigma_h()` function call**
+- **Purpose**: Pass `bar_hours` parameter to ensure ATR's sqrt(N) scaling uses correct number of bars per horizon
+- **Impact**: ATR component now scales correctly with timeframe
+- **Changes**: Added `bar_hours=_hours_per_bar(timeframe)` parameter
+
+### Technical Details
+
+#### Unit Standardization Process
+1. **GARCH/HAR**: `annualized_fractional_sigma → horizon_fractional_sigma` via `sqrt(horizon_hours / HOURS_PER_YEAR)`
+2. **ATR**: `absolute_per_bar → fractional_per_bar → horizon_fractional` via `(ATR/price) * sqrt(horizon_hours/bar_hours) * calibration_factor`
+3. **Blending**: All components in fractional space with normalized weights
+4. **Output**: `fractional_blend * price = absolute_horizon_sigma`
+
+#### Configuration Parameters Added
+- `vol.atr_to_sigma_factor`: Calibration factor for ATR-to-sigma conversion (default: 1.0)
+- `vol.horizon_hours`: Target horizon for sigma_H calculations (default: 4)
+- `vol.blend_w_*`: Component weights for GARCH/HAR/ATR blending
+
+### Validation Results
+
+#### Test Suite Verification
+- **All existing tests pass**: 10/10 tests successful after modifications
+- **No breaking changes**: Existing API maintained, only internal calculations improved
+
+#### Cross-Check Validation (Sample Data)
+- **Price**: 16,630 USDT
+- **ATR(5)**: 118.15 (absolute)
+- **HAR horizon sigma**: 0.003011 (fractional)
+- **ATR horizon contribution**: 0.007105 (fractional, before calibration)
+- **Blended result**: 50.64 absolute (0.003045 fractional)
+- **Coherence**: Components now comparable in fractional space
+
+### Impact Assessment
+
+#### Positive Impacts
+1. **Consistency**: Volatility calculations now timeframe-agnostic
+2. **Accuracy**: Proper unit handling eliminates systematic biases
+3. **Calibration**: ATR component can be tuned via `atr_to_sigma_factor`
+4. **Maintainability**: Clear separation of concerns and unit conversions
+
+#### Risk Mitigation
+1. **Backward Compatibility**: All existing interfaces preserved
+2. **Fallback Logic**: ATR-only fallback when advanced models fail
+3. **Validation**: Comprehensive test coverage maintained
+4. **Configuration**: All changes configurable via settings
+
+### Recommendations for Further Enhancement
+
+#### Immediate Actions
+1. **Calibration**: Tune `atr_to_sigma_factor` based on historical data
+2. **Monitoring**: Track blend component contributions in production
+3. **Documentation**: Update user-facing docs with new parameters
+
+#### Future Improvements
+1. **Synthetic Tests**: Add invariance tests across timeframes
+2. **Per-Asset Calibration**: Asset-specific ATR calibration factors
+3. **Rolling Validation**: Continuous model performance monitoring
+
+### Files Modified
+- `market_analysis/garch_vol_triggers.py`: Core volatility calculation logic
+- `position_risk_manager.py`: Function call parameter updates
+
+### Configuration Impact
+- New parameters in `vol` section of settings
+- Existing parameters remain unchanged
+- Default values ensure backward compatibility

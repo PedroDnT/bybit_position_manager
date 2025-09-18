@@ -1,4 +1,5 @@
 import os
+
 try:
     import tomllib
 except ImportError:
@@ -17,7 +18,9 @@ def load_settings(path: str = DEFAULT_SETTINGS_PATH) -> dict:
     Returns an empty dictionary if neither can be loaded.
     """
     if not tomllib:
-        print("Warning: tomllib is not available. Install with 'pip install tomli' for Python < 3.11.")
+        print(
+            "Warning: tomllib is not available. Install with 'pip install tomli' for Python < 3.11."
+        )
         return {}
     try:
         with open(path, "rb") as f:
@@ -28,11 +31,14 @@ def load_settings(path: str = DEFAULT_SETTINGS_PATH) -> dict:
             with open(EXAMPLE_SETTINGS_PATH, "rb") as f:
                 return tomllib.load(f)
         except FileNotFoundError:
-            print(f"Warning: Example settings '{EXAMPLE_SETTINGS_PATH}' also not found. Using empty config.")
+            print(
+                f"Warning: Example settings '{EXAMPLE_SETTINGS_PATH}' also not found. Using empty config."
+            )
             return {}
     except Exception as e:
         print(f"Error loading settings from '{path}': {e}")
         return {}
+
 
 # Load settings once and make them available
 settings = load_settings()
