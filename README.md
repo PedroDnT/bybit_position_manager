@@ -1212,6 +1212,208 @@ The authors, contributors, and maintainers of this project:
 
 **USE AT YOUR OWN RISK**
 
+## ❓ Frequently Asked Questions (FAQ)
+
+### 📊 **1. What does "Maximum Portfolio Risk" mean? Is it based on notional value or margin used?**
+
+**Maximum Portfolio Risk** refers to the **total dollar amount at risk across all positions** if all stop-losses are hit simultaneously. This is calculated based on **notional values**, not margin used.
+
+**Key Points:**
+- **Calculation**: `Total Risk = Sum of (Position Notional × Risk Target %)` for all positions
+- **Example**: If you have 3 positions with $10,000, $15,000, and $5,000 notional values, each risking 2.5%, your total portfolio risk would be $750
+- **Not Margin-Based**: This is independent of leverage or margin requirements
+- **Purpose**: Ensures you never risk more than a predetermined percentage of your total portfolio value
+
+```python
+# Example calculation
+position_1_risk = 10000 * 0.025 = $250  # 2.5% of $10k notional
+position_2_risk = 15000 * 0.025 = $375  # 2.5% of $15k notional  
+position_3_risk = 5000 * 0.025 = $125   # 2.5% of $5k notional
+total_portfolio_risk = $250 + $375 + $125 = $750
+```
+
+**Configuration:**
+```toml
+[risk]
+max_portfolio_risk = 0.02  # 2% of total portfolio value
+```
+
+---
+
+### 🎯 **2. What is "Risk Target" and what does it mean?**
+
+**Risk Target** is the **percentage of a position's notional value** that you're willing to lose if the stop-loss is hit. This is dynamically adjusted based on the confidence score of each trade setup.
+
+**How It Works:**
+1. **Base Risk Target**: Set in configuration (default: 2.5% of position notional)
+2. **Confidence Multiplier**: Applied based on trade quality assessment
+3. **Final Risk Target**: Clamped within professional limits (2.0% - 3.0%)
+
+**Dynamic Adjustment Formula:**
+```python
+# Base configuration
+base_target_pct = 0.025  # 2.5%
+min_target_pct = 0.020   # 2.0% 
+max_target_pct = 0.030   # 3.0%
+
+# Confidence-based multiplier
+if confidence_score >= 4:    # High confidence
+    multiplier = 1.2         # Risk 3.0%
+elif confidence_score >= 2: # Medium confidence  
+    multiplier = 1.0         # Risk 2.5%
+elif confidence_score >= 0: # Low confidence
+    multiplier = 0.9         # Risk 2.25%
+else:                        # Negative confidence
+    multiplier = 0.8         # Risk 2.0%
+
+final_risk_target = min(max_target_pct, max(min_target_pct, base_target_pct * multiplier))
+```
+
+**Example:**
+- Position notional: $10,000
+- Confidence score: 4 (high confidence)
+- Risk target: 3.0% (2.5% × 1.2)
+- **Dollar risk**: $10,000 × 0.03 = $300
+
+---
+
+### 🔗 **3. Can Correlation Threshold and Cluster Risk Cap be calibrated?**
+
+**Yes, both parameters are fully configurable** and should be calibrated based on your trading strategy and market conditions.
+
+**Correlation Threshold (`corr_threshold`)**:
+- **Default**: 0.7 (70% correlation)
+- **Range**: 0.5 - 0.9 recommended
+- **Purpose**: Determines when positions are considered "correlated" and grouped into clusters
+- **Lower values**: More aggressive clustering (more positions grouped together)
+- **Higher values**: More conservative clustering (only highly correlated positions grouped)
+
+**Cluster Risk Cap (`cluster_risk_cap_pct`)**:
+- **Default**: 0.5 (50% of total portfolio risk)
+- **Range**: 0.3 - 0.8 recommended  
+- **Purpose**: Maximum percentage of total portfolio risk allowed per correlated cluster
+- **Lower values**: More conservative (better diversification)
+- **Higher values**: More aggressive (allows concentrated exposure)
+
+**Configuration Example:**
+```toml
+[portfolio]
+corr_threshold = 0.7        # 70% correlation threshold
+cluster_risk_cap_pct = 0.5  # Max 50% of total risk per cluster
+
+# Alternative conservative settings
+# corr_threshold = 0.6        # 60% correlation (more clustering)
+# cluster_risk_cap_pct = 0.4  # Max 40% of total risk per cluster
+```
+
+**Calibration Guidelines:**
+- **Crypto Markets**: Use 0.6-0.7 threshold (crypto assets are highly correlated)
+- **Mixed Assets**: Use 0.7-0.8 threshold (stocks, forex, commodities)
+- **Risk Tolerance**: Lower cluster cap (0.3-0.4) for conservative, higher (0.6-0.8) for aggressive
+
+---
+
+### ⚖️ **4. Do exposure increase/decrease suggestions account for both clustering and risk limits?**
+
+**Yes, the system considers both clustering effects and individual risk limits** when making exposure recommendations. The process follows this hierarchy:
+
+**Decision Process:**
+1. **Individual Position Analysis**: Calculate optimal size based on confidence score and risk target
+2. **Cluster Risk Assessment**: Group correlated positions and calculate total cluster risk
+3. **Risk Cap Application**: If cluster risk exceeds limits, proportionally scale down all positions in that cluster
+4. **Final Recommendations**: Suggest increases/decreases based on the constrained optimal sizes
+
+**Example Scenario:**
+```
+Initial Analysis:
+- BTC position: Optimal size $15,000 (risk: $450)
+- ETH position: Optimal size $12,000 (risk: $360) 
+- SOL position: Optimal size $8,000 (risk: $240)
+- Cluster correlation: 0.8 (above 0.7 threshold)
+- Total cluster risk: $1,050
+
+Risk Cap Check:
+- Max cluster risk allowed: $800 (50% of $1,600 total portfolio risk)
+- Scale factor: $800 / $1,050 = 0.76
+
+Final Recommendations:
+- BTC: Reduce to $11,400 (76% of optimal)
+- ETH: Reduce to $9,120 (76% of optimal)
+- SOL: Reduce to $6,080 (76% of optimal)
+```
+
+**Output Example:**
+```
+Portfolio Note: Cluster [BTC, ETH, SOL] risk capped $1,050→$800 (ρ≥0.7)
+Recommendation: Reduce BTC exposure by 24% due to cluster risk limits
+```
+
+---
+
+### 🎯 **5. How is Confidence Score calculated and where is it used?**
+
+**Confidence Score** is a **0-5 point system** that evaluates trade setup quality based on five technical factors:
+
+**Calculation Components:**
+
+1. **Trend Strength (EMA Crossover)** [+1 point]:
+   - **Long**: EMA20 > EMA50 (uptrend alignment)
+   - **Short**: EMA20 < EMA50 (downtrend alignment)
+
+2. **Breakout Confirmation (Donchian Channels)** [+1 point]:
+   - **Long**: Price breaks above 20-period high
+   - **Short**: Price breaks below 20-period low
+
+3. **Volatility Regime Analysis** [+1/-1 point]:
+   - **+1**: Low volatility regime (current vol < 80% of median)
+   - **-1**: High volatility regime (current vol > 150% of median)
+
+4. **Price Momentum (RSI)** [+1 point]:
+   - **Long**: RSI > 50 (positive momentum)
+   - **Short**: RSI < 50 (negative momentum)
+
+5. **Volatility Model Alignment** [+1/-1 point]:
+   - **+1**: GARCH and HAR models agree (ratio 0.5-2.0)
+   - **-1**: Models strongly disagree (ratio > 3.0)
+
+**Usage Throughout System:**
+
+**1. Risk Target Adjustment:**
+```python
+if confidence_score >= 4:    # High confidence
+    risk_multiplier = 1.2    # Risk 20% more
+elif confidence_score >= 2: # Medium confidence
+    risk_multiplier = 1.0    # Standard risk
+elif confidence_score >= 0: # Low confidence  
+    risk_multiplier = 0.9    # Risk 10% less
+else:                        # Negative confidence
+    risk_multiplier = 0.8    # Risk 20% less
+```
+
+**2. Stop-Loss Adjustment:**
+```python
+confidence_adjustment = 1.0 + (confidence_score * 0.05)  # ±25% based on confidence
+adjusted_stop_distance = base_stop_distance * confidence_adjustment
+```
+
+**3. Position Sizing:**
+```python
+optimal_size = (risk_target_pct * notional) / stop_loss_distance
+# Where risk_target_pct is adjusted by confidence score
+```
+
+**Example Output:**
+```
+Symbol: BTC/USDT
+Confidence Score: 4/5
+Contributing Factors:
+  ✓ Uptrend (EMA20 > EMA50)
+  ✓ Breakout above Donchian high  
+  ✓ Low volatility regime
+  ✓ Positive momentum (RSI > 50)
+Risk Target: 3.0% (base 2.5% × 1.2 confidence multiplier)
+```
+
 ## 🔗 Additional Resources
 
 ### Documentation
