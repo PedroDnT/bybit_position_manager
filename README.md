@@ -133,6 +133,13 @@ pytest -q
 - Computes R, R:R, and position sizing guidance
 - Emits per-position analysis dict and portfolio report
 
+#### Liquidation buffer guardrail
+
+- The `[risk].liquidation_buffer_multiple` setting controls how far the liquidation price must sit beyond the recommended stop.
+- By default the guardrail requires the liquidation price to be at least **2.0 ×** the stop distance (roughly twice the ATR-based cushion).
+- Increase the multiple to demand more breathing room during high leverage or volatile regimes; lower it if exchange margin rules already provide a generous cushion.
+- Reports surface both the observed buffer ratio and the configured threshold so thin cushions are easy to spot.
+
 ... existing code ...
 
 ### 🧠 Advanced Risk Logic Explained

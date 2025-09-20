@@ -53,6 +53,58 @@ from .reporting import generate_report, _calculate_portfolio_metrics
 from .adaptive_stop_loss import AdaptiveStopLossManager
 
 
+DEFAULT_LIQUIDATION_BUFFER_MULTIPLE = 2.0
+
+
+def evaluate_liquidation_buffer(
+    stop_distance: float,
+    liquidation_distance: Optional[float],
+    threshold_ratio: float,
+) -> Dict[str, Optional[float]]:
+    """Assess whether the liquidation buffer is sufficient."""
+
+    def _to_float(value: Any, default: Optional[float] = None) -> Optional[float]:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    stop_distance = _to_float(stop_distance, 0.0) or 0.0
+    threshold_ratio = max(
+        _to_float(threshold_ratio, DEFAULT_LIQUIDATION_BUFFER_MULTIPLE)
+        or DEFAULT_LIQUIDATION_BUFFER_MULTIPLE,
+        0.0,
+    )
+    required_distance = threshold_ratio * stop_distance if stop_distance > 0 else 0.0
+    liquidation_distance = _to_float(liquidation_distance)
+
+    if liquidation_distance is None:
+        return {
+            "safe": None,
+            "ratio": None,
+            "threshold_ratio": threshold_ratio,
+            "required_distance": required_distance if stop_distance > 0 else None,
+        }
+
+    if stop_distance <= 0:
+        return {
+            "safe": True if threshold_ratio == 0 else False,
+            "ratio": None,
+            "threshold_ratio": threshold_ratio,
+            "required_distance": None,
+        }
+
+    ratio = liquidation_distance / stop_distance
+    safe = ratio >= threshold_ratio if threshold_ratio > 0 else True
+
+    return {
+        "safe": safe,
+        "ratio": ratio,
+        "threshold_ratio": threshold_ratio,
+        "required_distance": required_distance,
+    }
+
+
 class PositionRiskManager:
     """Manages risk analysis for all open positions."""
 
@@ -67,6 +119,15 @@ class PositionRiskManager:
         self.risk_analysis = {}
         self.account_metrics: Dict[str, Any] = {}
         self.cfg = settings
+        buffer_multiple_cfg = (
+            self.cfg.get("risk", {}).get(
+                "liquidation_buffer_multiple", DEFAULT_LIQUIDATION_BUFFER_MULTIPLE
+            )
+        )
+        try:
+            self.liquidation_buffer_multiple = max(float(buffer_multiple_cfg), 0.0)
+        except (TypeError, ValueError):
+            self.liquidation_buffer_multiple = DEFAULT_LIQUIDATION_BUFFER_MULTIPLE
 
         # Centralized exchange object creation
         load_dotenv()
@@ -380,24 +441,34 @@ class PositionRiskManager:
             r_unreal = max(0.0, (entry_price - live_price) / R_unit) if R_unit > 0 else 0.0
         trail_suggestion = compute_trailing_stop(entry=live_price, direction=side, atr=atr, cfg=self.cfg, r_unrealized=r_unreal)
 
-        # Check liquidation buffer if liquidation price exists
-        liquidation_price = position.get("liquidationPrice")
-        liq_buffer_safe = True
-        liq_buffer_ratio = None
+        # Check liquidation buffer using configurable cushion multiple
+        liquidation_price_raw = position.get("liquidationPrice")
+        try:
+            liquidation_price = (
+                float(liquidation_price_raw)
+                if liquidation_price_raw is not None
+                else None
+            )
+        except (TypeError, ValueError):
+            liquidation_price = None
 
-        if liquidation_price:
-            if side == "long":
-                sl_to_liq_distance = abs(risk_params["SL"] - liquidation_price)
-                sl_to_entry_distance = abs(entry_price - risk_params["SL"])
-                if sl_to_entry_distance > 0:
-                    liq_buffer_ratio = sl_to_liq_distance / sl_to_entry_distance
-                    liq_buffer_safe = risk_params["SL"] > liquidation_price * 1.1
-            else:  # short
-                sl_to_liq_distance = abs(liquidation_price - risk_params["SL"])
-                sl_to_entry_distance = abs(risk_params["SL"] - entry_price)
-                if sl_to_entry_distance > 0:
-                    liq_buffer_ratio = sl_to_liq_distance / sl_to_entry_distance
-                    liq_buffer_safe = risk_params["SL"] < liquidation_price * 0.9
+        liq_buffer_safe: Optional[bool] = None
+        liq_buffer_ratio: Optional[float] = None
+        liq_buffer_threshold = self.liquidation_buffer_multiple
+        liq_buffer_required_distance: Optional[float] = None
+
+        if liquidation_price is not None:
+            stop_distance = float(chosen['SL_distance']) if 'SL_distance' in chosen else 0.0
+            liquidation_distance = abs(float(chosen['SL']) - liquidation_price)
+            buffer_eval = evaluate_liquidation_buffer(
+                stop_distance=stop_distance,
+                liquidation_distance=liquidation_distance,
+                threshold_ratio=self.liquidation_buffer_multiple,
+            )
+            liq_buffer_safe = buffer_eval["safe"]
+            liq_buffer_ratio = buffer_eval["ratio"]
+            liq_buffer_threshold = buffer_eval["threshold_ratio"]
+            liq_buffer_required_distance = buffer_eval["required_distance"]
 
         # Calculate dollar risk and reward using OPTIMAL position size
         optimal_position_size = chosen['Q']
@@ -515,6 +586,8 @@ class PositionRiskManager:
             "risk_reward_ratio": rr_ratio,
             "liquidation_buffer_safe": liq_buffer_safe,
             "liquidation_buffer_ratio": liq_buffer_ratio,
+            "liquidation_buffer_threshold": liq_buffer_threshold,
+            "liquidation_buffer_required_distance": liq_buffer_required_distance,
             "position_health": health,
             "action_required": action,
         }

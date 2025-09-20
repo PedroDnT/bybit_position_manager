@@ -163,10 +163,18 @@ def generate_report(
             f"    💰 Current Risk: ${analysis.get('current_dollar_risk', 0):.2f} (for current size: {analysis['position_size']:.2f})"
         )
         if analysis.get("liquidation_buffer_safe") is not None:
+            ratio = analysis.get("liquidation_buffer_ratio")
+            threshold = analysis.get("liquidation_buffer_threshold")
+            detail = ""
+            if ratio is not None and threshold is not None:
+                detail = f" (buffer {ratio:.2f}× vs ≥ {threshold:.2f}×)"
+            elif threshold is not None:
+                detail = f" (requires ≥ {threshold:.2f}× cushion)"
+
             if analysis["liquidation_buffer_safe"]:
-                report.append(f"    ✅ Safe from liquidation")
+                report.append(f"    ✅ Safe from liquidation{detail}")
             else:
-                report.append(f"    ⚠️  TOO CLOSE TO LIQUIDATION!")
+                report.append(f"    ⚠️  TOO CLOSE TO LIQUIDATION!{detail}")
         report.append(
             f"  TAKE PROFIT: ${analysis['take_profit']:.6f} ({analysis['tp_pct']:.2f}% from entry)"
         )
