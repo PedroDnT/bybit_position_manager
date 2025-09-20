@@ -315,9 +315,12 @@
 
     function applySnapshot(snap) {
       if (!snap) return;
-      renderPortfolio(snap.portfolio);
+      // Use backend keys: portfolio_metrics and account_metrics
+      const portfolio = snap.portfolio_metrics ?? snap.portfolio;
+      const account = snap.account_metrics ?? snap.account;
+      renderPortfolio(portfolio);
       renderPositions(snap.positions);
-      updatePnlChart(snap.account, snap.portfolio);
+      updatePnlChart(account, portfolio);
     }
 
     async function fetchInitial() {
