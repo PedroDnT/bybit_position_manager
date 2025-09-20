@@ -17,10 +17,13 @@ Got it. Here’s a tight, actionable plan to make your system less conservative 
 Add a new section so you can tune without code changes:
 
 [risk]
-base_target_pct = 0.025         # was 0.02; start 2.5%
+# base_target_pct still feeds dynamic scaling but equity guard rails keep risk modest
+base_target_pct = 0.025         # pre-clamp target before equity limits
 min_target_pct = 0.015
 max_target_pct = 0.040
 use_dynamic = true
+min_equity_risk_frac = 0.005    # clamp per-trade risk to ≥0.5% of equity
+max_equity_risk_frac = 0.010    # and ≤1% unless config overrides
 
 [stops]
 # baseline multipliers by leverage *before* regime multipliers
