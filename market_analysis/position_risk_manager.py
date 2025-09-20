@@ -711,6 +711,8 @@ class PositionRiskManager:
         print("ANALYZING POSITION RISKS")
         print("=" * 80)
 
+        self.risk_analysis = {}
+
         for position in self.positions:
             analysis = self.analyze_position_volatility(position)
             
@@ -756,10 +758,10 @@ class PositionRiskManager:
             
             self.risk_analysis[position["symbol"]] = analysis
 
-        # Calculate portfolio-wide metrics and correlation caps
+        # Apply portfolio-level guardrails then compute metrics
+        self._apply_portfolio_risk_guards()
         portfolio_metrics = self._calculate_portfolio_metrics()
         self.risk_analysis["portfolio"] = portfolio_metrics
-        self._apply_portfolio_correlation_cap()
 
         return {
             "positions": self.risk_analysis,
@@ -770,6 +772,134 @@ class PositionRiskManager:
     def _calculate_portfolio_metrics(self) -> Dict[str, Any]:
         """Calculate portfolio-wide risk metrics."""
         return _calculate_portfolio_metrics(self.positions, self.risk_analysis)
+
+    def _apply_portfolio_risk_guards(self) -> None:
+        """Apply portfolio-wide risk throttles and correlation caps."""
+
+        if not self.positions:
+            return
+
+        self._apply_portfolio_risk_throttle()
+        self._apply_portfolio_correlation_cap()
+
+    def _apply_portfolio_risk_throttle(self) -> None:
+        """Scale positions when planned risk breaches the equity-level cap."""
+
+        # Collect per-position analyses that contribute to risk budgeting
+        analyzable_positions = [
+            (_symbol, analysis)
+            for _symbol, analysis in self.risk_analysis.items()
+            if isinstance(analysis, dict)
+            and analysis.get("dollar_risk", 0.0) is not None
+        ]
+
+        if not analyzable_positions:
+            return
+
+        def _sum_risk() -> float:
+            return sum(
+                float(analysis.get("dollar_risk", 0.0) or 0.0)
+                for _symbol, analysis in analyzable_positions
+            )
+
+        total_risk_dollars = _sum_risk()
+        if total_risk_dollars <= 0:
+            return
+
+        port_cfg = self.cfg.get("portfolio", {})
+        base_frac = float(port_cfg.get("max_portfolio_risk_frac", 0.04))
+        floor_frac = float(port_cfg.get("min_portfolio_risk_frac", 0.01))
+        if floor_frac > base_frac:
+            floor_frac, base_frac = base_frac, floor_frac
+
+        # Determine account equity for the portfolio cap
+        account_equity = self._resolve_account_equity({})
+        if account_equity <= 0:
+            # Fall back to sum of notionals if equity cannot be resolved
+            account_equity = sum(
+                abs(float(pos.get("notional", 0.0) or 0.0)) for pos in self.positions
+            )
+
+        if account_equity <= 0:
+            return
+
+        todays_realized = 0.0
+        todays_total = 0.0
+        try:
+            todays_realized = float(self.account_metrics.get("todays_realized_pnl", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            todays_realized = 0.0
+        try:
+            todays_total = float(self.account_metrics.get("todays_total_pnl", todays_realized) or 0.0)
+        except (TypeError, ValueError):
+            todays_total = todays_realized
+
+        drawdown_basis = min(todays_realized, todays_total, 0.0)
+        drawdown_frac = drawdown_basis / account_equity if account_equity > 0 else 0.0
+
+        default_steps = [
+            {"pnl_frac": -0.02, "multiplier": 0.75},
+            {"pnl_frac": -0.04, "multiplier": 0.5},
+        ]
+        drawdown_steps = port_cfg.get("drawdown_multipliers", default_steps)
+        if not isinstance(drawdown_steps, list):
+            drawdown_steps = default_steps
+
+        adjusted_frac = max(base_frac, floor_frac)
+
+        for step in sorted(drawdown_steps, key=lambda x: float(x.get("pnl_frac", 0.0))):
+            try:
+                threshold = float(step.get("pnl_frac", 0.0))
+            except (TypeError, ValueError):
+                threshold = 0.0
+            try:
+                multiplier = float(step.get("multiplier", 1.0))
+            except (TypeError, ValueError):
+                multiplier = 1.0
+
+            multiplier = max(min(multiplier, 1.0), 0.0)
+            if drawdown_frac <= threshold:
+                adjusted_frac = max(adjusted_frac * multiplier, floor_frac)
+
+        risk_cap_dollars = account_equity * adjusted_frac
+
+        if risk_cap_dollars <= 0:
+            return
+
+        throttle_applied = total_risk_dollars > risk_cap_dollars
+        scale = min(1.0, risk_cap_dollars / total_risk_dollars) if total_risk_dollars > 0 else 1.0
+
+        if throttle_applied and scale < 1.0:
+            for _symbol, analysis in analyzable_positions:
+                try:
+                    analysis["optimal_position_size"] *= scale
+                except (KeyError, TypeError):
+                    pass
+                for key in ("dollar_risk", "dollar_reward", "target_risk_dollars"):
+                    if key in analysis and analysis[key] is not None:
+                        analysis[key] = float(analysis[key]) * scale
+
+                existing_note = analysis.get("portfolio_note", "")
+                throttle_note = (
+                    f"Portfolio throttle scaled risk by {scale:.2f} (cap ${risk_cap_dollars:,.0f})"
+                )
+                analysis["portfolio_note"] = (
+                    f"{existing_note} | {throttle_note}".strip(" |") if existing_note else throttle_note
+                )
+                analysis["portfolio_throttle_scale"] = scale
+
+        post_risk_dollars = _sum_risk()
+
+        self.risk_analysis["portfolio_throttle"] = {
+            "total_planned_risk": total_risk_dollars,
+            "post_scale_total_risk": post_risk_dollars,
+            "risk_cap_fraction": adjusted_frac,
+            "risk_cap_dollars": risk_cap_dollars,
+            "account_equity": account_equity,
+            "drawdown_fraction": drawdown_frac,
+            "throttle_applied": throttle_applied and scale < 1.0,
+            "scale": scale if throttle_applied else 1.0,
+        }
 
     def _apply_portfolio_correlation_cap(self) -> None:
         """Compute correlation clusters and cap cluster risk as per settings."""
@@ -850,6 +980,15 @@ class PositionRiskManager:
                     analysis["portfolio_note"] = (
                         f"Cluster {cluster} risk capped {cluster_risk:.2f}→{max_cluster_risk:.2f} (ρ≥{corr_threshold})"
                     )
+
+        throttle_info = self.risk_analysis.get("portfolio_throttle")
+        if isinstance(throttle_info, dict):
+            updated_total = sum(
+                float(analysis.get("dollar_risk", 0.0) or 0.0)
+                for analysis in self.risk_analysis.values()
+                if isinstance(analysis, dict) and analysis.get("dollar_risk") is not None
+            )
+            throttle_info["post_scale_total_risk"] = updated_total
 
     def update_stop_loss_orders(self, dry_run: bool = True) -> Dict[str, Any]:
         """Update stop-loss orders for existing positions based on adaptive calculations.

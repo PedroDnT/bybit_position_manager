@@ -1,5 +1,6 @@
 import os
 import argparse
+from typing import Any
 from .position_risk_manager import PositionRiskManager
 
 
@@ -26,22 +27,66 @@ def main():
     if args.print_report:
         print(report)
 
-    # Pretty print summary table
-    print("Symbol            Side   Entry       Price       Size        SL          TP          R:R   Risk%   k/m")
+    # Pretty print summary table that reflects the GARCH-driven levels
+
+    def _fmt_number(value: Any, width: int = 11, precision: int = 4) -> str:
+        """Safely format numeric values for table output."""
+
+        try:
+            return f"{float(value):<{width}.{precision}f}"
+        except (TypeError, ValueError):
+            return f"{'N/A':<{width}}"
+
+    def _fmt_price(value: Any) -> str:
+        try:
+            return f"${float(value):<10.4f}"
+        except (TypeError, ValueError):
+            return f"{'N/A':<11}"
+
+    def _fmt_ratio(value: Any) -> str:
+        try:
+            return f"{float(value):<5.1f}:1"
+        except (TypeError, ValueError):
+            return f"{'N/A':<7}"
+
+    def _fmt_pct(value: Any) -> str:
+        try:
+            return f"{float(value) * 100:<6.2f}%"
+        except (TypeError, ValueError):
+            return f"{'N/A':<7}"
+
+    print(
+        "Symbol            Side   Entry       Price       Size        SL          TP          Trail       R:R   Risk%   k/m       Method"
+    )
     for sym, analysis in manager.risk_analysis.items():
-        if not isinstance(analysis, dict) or 'side' not in analysis:
+        if not isinstance(analysis, dict) or "side" not in analysis:
             continue
+
+        trail = analysis.get("trail_stop_suggestion")
+        km = "N/A"
+        k_mult = analysis.get("k_multiplier")
+        m_mult = analysis.get("m_multiplier")
+        if k_mult is not None and m_mult is not None:
+            try:
+                km = f"{float(k_mult):.1f}/{float(m_mult):.1f}"
+            except (TypeError, ValueError):
+                km = "N/A"
+
+        vol_method = analysis.get("volatility_method") or "N/A"
+
         print(
             f"{sym:<15} "
-            f"{analysis['side']:<6} "
-            f"{analysis['entry_price']:<11.4f} "
-            f"${analysis['current_price']:<10.4f} "
-            f"{analysis['position_size']:<10.4f} "
-            f"${analysis['stop_loss']:<9.4f} "
-            f"${analysis['take_profit']:<9.4f} "
-            f"{analysis['risk_reward_ratio']:<5.1f}:1 "
-            f"{analysis['risk_target_pct']*100:<6.2f}% "
-            f"{analysis['k_multiplier']:.1f}/{analysis['m_multiplier']:.1f}"
+            f"{analysis.get('side', ''):<6} "
+            f"{_fmt_number(analysis.get('entry_price'))} "
+            f"{_fmt_price(analysis.get('current_price'))} "
+            f"{_fmt_number(analysis.get('position_size'))} "
+            f"{_fmt_price(analysis.get('stop_loss'))} "
+            f"{_fmt_price(analysis.get('take_profit'))} "
+            f"{_fmt_price(trail)} "
+            f"{_fmt_ratio(analysis.get('risk_reward_ratio'))} "
+            f"{_fmt_pct(analysis.get('risk_target_pct'))} "
+            f"{km:<9} "
+            f"{vol_method:<12}"
         )
 
     if args.monitor:
