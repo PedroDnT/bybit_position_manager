@@ -25,6 +25,23 @@ def _calculate_portfolio_metrics(
         total_dollar_reward / total_dollar_risk if total_dollar_risk > 0 else 0
     )
 
+    throttle_info = risk_analysis.get("portfolio_throttle")
+    if not isinstance(throttle_info, dict):
+        throttle_info = {}
+
+    risk_cap_dollars = throttle_info.get("risk_cap_dollars")
+    risk_cap_fraction = throttle_info.get("risk_cap_fraction")
+    risk_utilization = (
+        (total_dollar_risk / risk_cap_dollars)
+        if risk_cap_dollars and risk_cap_dollars > 0
+        else None
+    )
+    drawdown_pct = (
+        throttle_info.get("drawdown_fraction") * 100
+        if throttle_info.get("drawdown_fraction") is not None
+        else None
+    )
+
     return {
         "total_positions": len(positions),
         "total_notional": total_notional,
@@ -36,6 +53,12 @@ def _calculate_portfolio_metrics(
         "risk_pct_of_notional": (
             (total_dollar_risk / total_notional * 100) if total_notional > 0 else 0
         ),
+        "portfolio_risk_cap_dollars": risk_cap_dollars,
+        "portfolio_risk_cap_fraction": risk_cap_fraction,
+        "portfolio_risk_utilization": risk_utilization,
+        "portfolio_drawdown_pct": drawdown_pct,
+        "portfolio_throttle_applied": bool(throttle_info.get("throttle_applied")),
+        "portfolio_throttle_scale": throttle_info.get("scale"),
     }
 
 
@@ -76,6 +99,42 @@ def generate_report(
         report.append(
             f"Portfolio Risk/Reward: {portfolio.get('portfolio_risk_reward_ratio', 0):.2f}:1"
         )
+
+        cap_dollars = portfolio.get("portfolio_risk_cap_dollars")
+        cap_fraction = portfolio.get("portfolio_risk_cap_fraction")
+        utilization = portfolio.get("portfolio_risk_utilization")
+        drawdown_pct = portfolio.get("portfolio_drawdown_pct")
+        throttle_active = portfolio.get("portfolio_throttle_applied")
+
+        if cap_dollars:
+            fraction_pct = cap_fraction * 100 if cap_fraction else None
+            if fraction_pct is not None:
+                report.append(
+                    f"Max Portfolio Risk Budget: ${cap_dollars:,.2f} ({fraction_pct:.2f}% of equity)"
+                )
+            else:
+                report.append(
+                    f"Max Portfolio Risk Budget: ${cap_dollars:,.2f}"
+                )
+
+        if utilization is not None:
+            report.append(
+                f"Portfolio Risk Utilization: {utilization * 100:.1f}% of cap"
+            )
+
+        if drawdown_pct is not None:
+            report.append(
+                f"Current Drawdown Anchor: {drawdown_pct:.2f}%"
+            )
+
+        if throttle_active:
+            scale = portfolio.get("portfolio_throttle_scale")
+            if scale is not None:
+                report.append(
+                    f"⚠️  Portfolio throttle active – new risk scaled by {scale:.2f}."
+                )
+            else:
+                report.append("⚠️  Portfolio throttle active – risk reduced by drawdown guardrails.")
 
         if portfolio.get("positions_at_risk"):
             report.append(

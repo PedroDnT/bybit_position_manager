@@ -132,6 +132,7 @@ pytest -q
 - Chooses effective SL/TP based on regime and confidence
 - Computes R, R:R, and position sizing guidance
 - Budgets risk off account equity with configurable 0.5–1% guard rails and reports the applied dollars
+- Enforces a drawdown-aware portfolio risk cap that scales planned losses when they exceed a configurable fraction of equity
 - Emits per-position analysis dict and portfolio report
 
 #### Liquidation buffer guardrail
@@ -156,6 +157,7 @@ pytest -q
 
 Key configuration keys:
 - [risk] min_equity_risk_frac / max_equity_risk_frac for equity-based risk guard rails
+- [portfolio] max_portfolio_risk_frac / min_portfolio_risk_frac / drawdown_multipliers for the equity-level risk throttle
 - [vol] horizon_hours
 - [stops] breakeven_after_R, atr_trail_mult_initial, atr_trail_mult_late
 - [prob] prob_alpha, prob_target, m_min, m_max, m_step

@@ -58,6 +58,12 @@ horizon_hours = 4                # keep consistent with your timeframe
 corr_lookback_days = 60
 corr_threshold = 0.7
 cluster_risk_cap_pct = 0.5       # max fraction of total risk per highly-correlated cluster
+max_portfolio_risk_frac = 0.04   # cap planned portfolio loss to 4% of equity by default
+min_portfolio_risk_frac = 0.01   # never tighten below 1% of equity without explicit override
+drawdown_multipliers = [         # ratchet cap lower after drawdowns
+    { pnl_frac = -0.02, multiplier = 0.75 },
+    { pnl_frac = -0.04, multiplier = 0.50 },
+]
 
 
 ⸻
