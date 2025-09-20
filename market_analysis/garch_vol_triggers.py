@@ -356,3 +356,301 @@ def compute_trailing_stop(entry: float, direction: str, atr: float, cfg: dict, r
     else:
         return entry + atr * trail_mult
 
+
+# ---------- New: Probability-based TP-before-SL model and dynamic levels ----------
+
+def probability_hit_tp_before_sl(price: float,
+                                  tp: float,
+                                  sl: float,
+                                  sigma_price: float,
+                                  side: str,
+                                  alpha: float = 1.0) -> float:
+    """
+    Approximate probability that TP is hit before SL given current state.
+
+    Heuristic model inspired by first-passage probabilities for driftless Brownian motion.
+    We use a smooth Bradley-Terry style logistic on distance asymmetry normalized by sigma.
+
+    Args:
+        price: current price
+        tp: take-profit price
+        sl: stop-loss price
+        sigma_price: expected one-horizon price sigma (absolute, not %)
+        side: 'long' or 'short'
+        alpha: softness parameter for the logistic (higher -> softer)
+
+    Returns:
+        Probability in [0,1] that TP is hit before SL.
+    """
+    if sigma_price <= 0:
+        return 0.5
+
+    if side.lower() == 'long':
+        d_up = max(0.0, tp - price)
+        d_dn = max(0.0, price - sl)
+    else:
+        d_up = max(0.0, price - tp)  # for shorts, TP is below
+        d_dn = max(0.0, sl - price)
+
+    # If one side is already violated, return degenerate probability
+    if d_up == 0 and d_dn == 0:
+        return 0.5
+    if d_up == 0:
+        return 1.0
+    if d_dn == 0:
+        return 0.0
+
+    # Normalize asymmetry by sigma and alpha
+    z = (d_up - d_dn) / max(1e-12, (sigma_price * alpha))
+    # Map to probability
+    p_tp = 1.0 / (1.0 + math.exp(z))
+    return float(max(0.0, min(1.0, p_tp)))
+
+
+def dynamic_levels_from_state(current_price: float,
+                              entry_price: float,
+                              side: str,
+                              sigma_H: float,
+                              atr: float,
+                              base_k: float,
+                              base_m: float,
+                              cfg: dict) -> dict:
+    """
+    Compute dynamic SL/TP anchored on CURRENT price, adapting to unrealized R and
+    probabilistic win chance.
+
+    Logic:
+    - Start from base ATR multiples (base_k, base_m) but anchor distances to current price.
+    - If unrealized R >= breakeven threshold, tighten SL to at least breakeven or ATR trail.
+    - Optimize TP multiplier to satisfy target probability of hitting TP before SL.
+
+    Returns dict with fields: SL, TP, k_eff, m_eff, p_tp, reasons[list[str]].
+    """
+    vol_cfg = (cfg or {}).get('vol', {})
+    stops_cfg = (cfg or {}).get('stops', {})
+    prob_cfg  = (cfg or {}).get('prob', {})
+
+    horizon_hours = int(vol_cfg.get('horizon_hours', 4))
+    alpha = float(prob_cfg.get('prob_alpha', 1.0))
+    p_target = float(prob_cfg.get('prob_target', 0.55))
+    m_min = float(prob_cfg.get('m_min', 2.0))
+    m_max = float(prob_cfg.get('m_max', 6.0))
+    m_step = float(prob_cfg.get('m_step', 0.25))
+    breakeven_R = float(stops_cfg.get('breakeven_after_R', 1.0))
+
+    # One-horizon absolute sigma from current price
+    sigma_price = max(1e-12, current_price * float(sigma_H))
+
+    # Base distances anchored to current price
+    base_sl_dist = base_k * sigma_price
+    base_tp_dist = base_m * sigma_price
+
+    # Approximate unrealized R using base SL distance as R-unit
+    if side.lower() == 'long':
+        r_unreal = max(0.0, (current_price - entry_price) / max(1e-12, base_sl_dist))
+        sl_dyn = current_price - base_sl_dist
+        tp_dyn = current_price + base_tp_dist
+    else:
+        r_unreal = max(0.0, (entry_price - current_price) / max(1e-12, base_sl_dist))
+        sl_dyn = current_price + base_sl_dist
+        tp_dyn = current_price - base_tp_dist
+
+    reasons: list[str] = []
+
+    # Tighten SL when trade has accrued sufficient unrealized R
+    if r_unreal >= breakeven_R:
+        trail = compute_trailing_stop(entry=current_price, direction=side, atr=atr, cfg=cfg, r_unrealized=r_unreal)
+        if side.lower() == 'long':
+            # ensure at least breakeven
+            sl_dyn = max(trail, entry_price)
+            reasons.append(f"Tightened SL to max(trail, breakeven), r_unreal={r_unreal:.2f}R")
+        else:
+            sl_dyn = min(trail, entry_price)
+            reasons.append(f"Tightened SL to min(trail, breakeven), r_unreal={r_unreal:.2f}R")
+
+    # Optimize TP multiplier to satisfy probability target
+    k_eff = base_k
+    best_tp = tp_dyn
+    best_m  = base_m
+    best_p  = probability_hit_tp_before_sl(
+        price=current_price, tp=tp_dyn, sl=sl_dyn,
+        sigma_price=sigma_price, side=side, alpha=alpha
+    )
+
+    m_val = m_min
+    while m_val <= m_max:
+        if side.lower() == 'long':
+            tp_try = current_price + m_val * sigma_price
+        else:
+            tp_try = current_price - m_val * sigma_price
+        p = probability_hit_tp_before_sl(
+            price=current_price, tp=tp_try, sl=sl_dyn,
+            sigma_price=sigma_price, side=side, alpha=alpha
+        )
+        # choose the smallest m that meets target; otherwise keep the best expected value
+        if p >= p_target:
+            best_tp = tp_try
+            best_m = m_val
+            best_p = p
+            reasons.append(f"TP optimized to meet prob target {p_target:.2f} (m={m_val:.2f}, p={p:.2f})")
+            break
+        # fallback tracking: keep the highest p if none meets target
+        if p > best_p:
+            best_p = p
+            best_tp = tp_try
+            best_m = m_val
+        m_val = round(m_val + m_step, 6)
+
+    return {
+        'SL': float(sl_dyn),
+        'TP': float(best_tp),
+        'k_eff': float(k_eff),
+        'm_eff': float(best_m),
+        'p_tp': float(best_p),
+        'r_unreal': float(r_unreal),
+        'reasons': reasons,
+        'sigma_price': float(sigma_price),
+        'horizon_hours': horizon_hours,
+    }
+
+
+def backtest_dynamic_levels(df: pd.DataFrame,
+                            entry_idx: int,
+                            side: str,
+                            entry_price: float,
+                            sigma_H: float,
+                            atr_series: pd.Series,
+                            base_k: float,
+                            base_m: float,
+                            cfg: dict) -> dict:
+    """
+    Simple historical backtest procedure comparing static (entry-anchored) vs dynamic (state-anchored)
+    SL/TP logic to determine which level is hit first after an entry point.
+
+    Methodology:
+    - Compute static SL/TP once using entry_price and (base_k, base_m) with given sigma_H.
+    - For each subsequent bar i>entry_idx, compute dynamic SL/TP anchored to the previous close
+      and previous ATR (to avoid lookahead), then check if the current bar's high/low breaches
+      the dynamic or static levels.
+    - Record the index of the first hit for each method and whether TP or SL was hit first.
+
+    Args:
+        df: OHLCV DataFrame with columns ['open','high','low','close']
+        entry_idx: Index (integer position) in df that represents the entry bar
+        side: 'long' or 'short'
+        entry_price: executed entry price
+        sigma_H: horizon volatility fraction (e.g., from blended_sigma_h / price)
+        atr_series: ATR series aligned with df (e.g., df['ATR20'])
+        base_k: base stop-loss multiple
+        base_m: base take-profit multiple
+        cfg: configuration dict
+
+    Returns:
+        dict with keys:
+          - static_first: 'TP' | 'SL' | None
+          - static_hit_index: int | None
+          - dynamic_first: 'TP' | 'SL' | None
+          - dynamic_hit_index: int | None
+          - static_levels: {SL, TP}
+          - example_dynamic: one example of dynamic levels at entry+1 for inspection
+    """
+    assert 0 <= entry_idx < len(df) - 1, "entry_idx must allow at least one forward bar"
+
+    # Static levels computed once from entry
+    static = sl_tp_and_size(
+        entry_price=entry_price,
+        sigma_H=sigma_H,
+        k=base_k,
+        m=base_m,
+        side=side,
+        R=100.0,
+        tick_size=None,
+    )
+    static_sl = float(static['SL'])
+    static_tp = float(static['TP'])
+
+    static_first = None
+    static_hit_index = None
+
+    dynamic_first = None
+    dynamic_hit_index = None
+
+    # Iterate forward bars
+    for i in range(entry_idx + 1, len(df)):
+        prev_close = float(df['close'].iloc[i - 1])
+        atr_prev = float(atr_series.iloc[i - 1]) if atr_series is not None else 0.0
+        # compute dynamic levels anchored to prev close
+        dyn = dynamic_levels_from_state(
+            current_price=prev_close,
+            entry_price=entry_price,
+            side=side,
+            sigma_H=sigma_H,
+            atr=atr_prev,
+            base_k=base_k,
+            base_m=base_m,
+            cfg=cfg,
+        )
+        dyn_sl = float(dyn['SL'])
+        dyn_tp = float(dyn['TP'])
+
+        bar_high = float(df['high'].iloc[i])
+        bar_low = float(df['low'].iloc[i])
+
+        # Check static hits
+        if static_first is None:
+            if side.lower() == 'long':
+                if bar_high >= static_tp:
+                    static_first = 'TP'
+                    static_hit_index = i
+                elif bar_low <= static_sl:
+                    static_first = 'SL'
+                    static_hit_index = i
+            else:
+                if bar_low <= static_tp:
+                    static_first = 'TP'
+                    static_hit_index = i
+                elif bar_high >= static_sl:
+                    static_first = 'SL'
+                    static_hit_index = i
+
+        # Check dynamic hits
+        if dynamic_first is None:
+            if side.lower() == 'long':
+                if bar_high >= dyn_tp:
+                    dynamic_first = 'TP'
+                    dynamic_hit_index = i
+                elif bar_low <= dyn_sl:
+                    dynamic_first = 'SL'
+                    dynamic_hit_index = i
+            else:
+                if bar_low <= dyn_tp:
+                    dynamic_first = 'TP'
+                    dynamic_hit_index = i
+                elif bar_high >= dyn_sl:
+                    dynamic_first = 'SL'
+                    dynamic_hit_index = i
+
+        # If both determined, we can stop early
+        if static_first is not None and dynamic_first is not None:
+            break
+
+    example_dynamic = dynamic_levels_from_state(
+        current_price=float(df['close'].iloc[min(entry_idx + 1, len(df) - 1)]),
+        entry_price=entry_price,
+        side=side,
+        sigma_H=sigma_H,
+        atr=float(atr_series.iloc[min(entry_idx + 1, len(atr_series) - 1)]) if atr_series is not None else 0.0,
+        base_k=base_k,
+        base_m=base_m,
+        cfg=cfg,
+    )
+
+    return {
+        'static_first': static_first,
+        'static_hit_index': static_hit_index,
+        'dynamic_first': dynamic_first,
+        'dynamic_hit_index': dynamic_hit_index,
+        'static_levels': {'SL': static_sl, 'TP': static_tp},
+        'example_dynamic': example_dynamic,
+    }
+

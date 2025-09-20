@@ -1,55 +1,53 @@
+import os
+import argparse
 from .position_risk_manager import PositionRiskManager
 
 
 def main():
-    """Main execution function."""
-    # Initialize risk manager
-    manager = PositionRiskManager(sandbox=False)
+    parser = argparse.ArgumentParser(description="Advanced Crypto Position Risk Manager")
+    parser.add_argument("--monitor", action="store_true", help="Run real-time monitoring loop after initial analysis")
+    parser.add_argument("--interval", type=int, default=10, help="Seconds between monitoring updates")
+    parser.add_argument("--iterations", type=int, default=0, help="Number of monitoring iterations (0 means unlimited)")
+    # New: print full report to stdout
+    parser.add_argument("--print-report", action="store_true", help="Print the full risk report to stdout")
+    args = parser.parse_args()
 
-    # Fetch and analyze positions
-    positions = manager.fetch_positions()
-
-    if not positions:
-        print("No positions to analyze. Exiting.")
-        return
-
-    # Analyze all positions
+    manager = PositionRiskManager()
+    manager.fetch_positions()
     manager.analyze_all_positions()
-
-    # Generate and print report
     report = manager.generate_report()
-    print("\n" + report)
 
-    # Export to JSON
-    manager.export_to_json()
+    # Export JSON
+    out_path = os.path.join(os.path.dirname(__file__), "risk_analysis.json")
+    with open(out_path, "w") as f:
+        f.write(report)
 
-    # Print summary table
-    print("\n" + "=" * 80)
-    print("QUICK REFERENCE TABLE")
-    print("=" * 80)
+    # Optionally print the full report to stdout
+    if args.print_report:
+        print(report)
 
-    if manager.account_metrics:
-        metrics = manager.account_metrics
-        print(f"Account Equity: ${metrics.get('total_equity', 0):,.2f}")
-        print(f"Wallet Balance: ${metrics.get('total_wallet_balance', 0):,.2f}")
-        print(f"Today's Realized PnL: ${metrics.get('todays_realized_pnl', 0):,.2f}")
-        print(f"Today's Total PnL (Realized + Unrealized): ${metrics.get('todays_total_pnl', 0):,.2f}")
-        print("-" * 80)
-    print(f"{'Symbol':<15} {'Side':<5} {'Entry':<10} {'SL':<10} {'TP':<10} {'R:R':<6} {'Risk%':<7} {'k/m':<9}")
-    print("-" * 80)
+    # Pretty print summary table
+    print("Symbol            Side   Entry       Price       Size        SL          TP          R:R   Risk%   k/m")
+    for sym, analysis in manager.risk_analysis.items():
+        if not isinstance(analysis, dict) or 'side' not in analysis:
+            continue
+        print(
+            f"{sym:<15} "
+            f"{analysis['side']:<6} "
+            f"{analysis['entry_price']:<11.4f} "
+            f"${analysis['current_price']:<10.4f} "
+            f"{analysis['position_size']:<10.4f} "
+            f"${analysis['stop_loss']:<9.4f} "
+            f"${analysis['take_profit']:<9.4f} "
+            f"{analysis['risk_reward_ratio']:<5.1f}:1 "
+            f"{analysis['risk_target_pct']*100:<6.2f}% "
+            f"{analysis['k_multiplier']:.1f}/{analysis['m_multiplier']:.1f}"
+        )
 
-    for position in positions:
-        symbol = position['symbol']
-        analysis = manager.risk_analysis.get(symbol, {})
-
-        if analysis and 'stop_loss' in analysis:
-            print(f"{symbol:<15} {analysis['side'].upper():<5} "
-                  f"${analysis['entry_price']:<9.4f} "
-                  f"${analysis['stop_loss']:<9.4f} "
-                  f"${analysis['take_profit']:<9.4f} "
-                  f"{analysis['risk_reward_ratio']:<5.1f}:1 "
-                  f"{analysis['risk_target_pct']*100:<6.2f}% "
-                  f"{analysis['k_multiplier']:.1f}/{analysis['m_multiplier']:.1f}")
+    if args.monitor:
+        # if iterations is 0, treat as unlimited
+        iterations = None if args.iterations == 0 else args.iterations
+        manager.monitor_positions(interval_seconds=args.interval, iterations=iterations)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ import datetime as dt
 from typing import Dict, List, Any, Optional
 import pandas as pd
 import numpy as np
+import time
 
 # Some versions of ccxt's vendored dependencies attempt to call `git` during import
 # if version metadata is missing, which can hang on systems without developer tools.
@@ -43,7 +44,8 @@ from .garch_vol_triggers import (
     sl_tp_and_size,
     blended_sigma_h,
     validate_garch_result,
-    compute_trailing_stop
+    compute_trailing_stop,
+    dynamic_levels_from_state,
 )
 from .utils import _hours_per_bar
 from .confidence import calculate_confidence_score
@@ -290,28 +292,64 @@ class PositionRiskManager:
             R=target_risk_dollars,
             tick_size=tick_size
         )
-        
+
+        # --- Dynamic state-anchored levels (current-price based) ---
+        use_state = bool(self.cfg.get('stops', {}).get('use_state_anchored', True))
+        dynamic_info = dynamic_levels_from_state(
+            current_price=live_price,
+            entry_price=entry_price,
+            side=side,
+            sigma_H=primary_sigma_frac,
+            atr=atr,
+            base_k=k_sl_eff,
+            base_m=m_tp_eff,
+            cfg=self.cfg,
+        )
+        # Preserve static values for reference/comparison
+        static_sl = risk_params['SL']
+        static_tp = risk_params['TP']
+        static_sl_dist = risk_params['SL_distance']
+        static_tp_dist = risk_params['TP_distance']
+
+        # Build a dynamic risk_params-like struct so downstream code is consistent
+        dyn_sl = float(dynamic_info['SL'])
+        dyn_tp = float(dynamic_info['TP'])
+        dyn_sl_dist_from_entry = abs(entry_price - dyn_sl)
+        dyn_tp_dist_from_entry = abs(dyn_tp - entry_price)
+        # Recompute Q to maintain the same dollar risk target relative to entry→SL distance
+        dyn_Q = (target_risk_dollars / dyn_sl_dist_from_entry) if dyn_sl_dist_from_entry > 0 else risk_params['Q']
+        risk_params_dynamic = {
+            'SL': dyn_sl,
+            'TP': dyn_tp,
+            'SL_distance': dyn_sl_dist_from_entry,
+            'TP_distance': dyn_tp_dist_from_entry,
+            'Q': dyn_Q,
+        }
+
+        # Choose which set to apply to primary outputs
+        chosen = risk_params_dynamic if use_state else risk_params
+
         # Scale-out ladder
         scale_r1 = float(stops_cfg.get('scaleout_r1', 1.5))
         scale_r2 = float(stops_cfg.get('scaleout_r2', 3.0))
         frac1 = float(stops_cfg.get('scaleout_frac1', 0.4))
         frac2 = float(stops_cfg.get('scaleout_frac2', 0.3))
         frac_runner = float(stops_cfg.get('leave_runner_frac', 0.3))
-        R_unit = risk_params['SL_distance']
+        R_unit = chosen['SL_distance']
         if side == 'long':
             tp1 = entry_price + scale_r1 * R_unit
             tp2 = entry_price + scale_r2 * R_unit
         else:
             tp1 = entry_price - scale_r1 * R_unit
             tp2 = entry_price - scale_r2 * R_unit
-        
+
         # Trailing stop suggestion (assume unrealized R from current price)
         if side == 'long':
             r_unreal = max(0.0, (live_price - entry_price) / R_unit) if R_unit > 0 else 0.0
         else:
             r_unreal = max(0.0, (entry_price - live_price) / R_unit) if R_unit > 0 else 0.0
         trail_suggestion = compute_trailing_stop(entry=live_price, direction=side, atr=atr, cfg=self.cfg, r_unrealized=r_unreal)
-        
+
         # Check liquidation buffer if liquidation price exists
         liquidation_price = position.get('liquidationPrice')
         liq_buffer_safe = True
@@ -332,28 +370,27 @@ class PositionRiskManager:
                     liq_buffer_safe = risk_params['SL'] < liquidation_price * 0.9
         
         # Calculate dollar risk and reward using OPTIMAL position size
-        optimal_position_size = risk_params['Q']
+        optimal_position_size = chosen['Q']
         current_position_size = position['size']
-        
         if side == 'long':
-            optimal_dollar_risk = optimal_position_size * (entry_price - risk_params['SL'])
-            optimal_dollar_reward = optimal_position_size * (risk_params['TP'] - entry_price)
-            sl_pct = ((risk_params['SL'] - entry_price) / entry_price) * 100
-            tp_pct = ((risk_params['TP'] - entry_price) / entry_price) * 100
+            optimal_dollar_risk = optimal_position_size * (entry_price - chosen['SL'])
+            optimal_dollar_reward = optimal_position_size * (chosen['TP'] - entry_price)
+            sl_pct = ((chosen['SL'] - entry_price) / entry_price) * 100
+            tp_pct = ((chosen['TP'] - entry_price) / entry_price) * 100
         else:
-            optimal_dollar_risk = optimal_position_size * (risk_params['SL'] - entry_price)
-            optimal_dollar_reward = optimal_position_size * (entry_price - risk_params['TP'])
-            sl_pct = ((entry_price - risk_params['SL']) / entry_price) * 100
-            tp_pct = ((entry_price - risk_params['TP']) / entry_price) * 100
-        
+            optimal_dollar_risk = optimal_position_size * (chosen['SL'] - entry_price)
+            optimal_dollar_reward = optimal_position_size * (entry_price - chosen['TP'])
+            sl_pct = ((entry_price - chosen['SL']) / entry_price) * 100
+            tp_pct = ((entry_price - chosen['TP']) / entry_price) * 100
+
         # Risk/Reward for current position size
         if side == 'long':
-            current_dollar_risk = current_position_size * (entry_price - risk_params['SL'])
-            current_dollar_reward = current_position_size * (risk_params['TP'] - entry_price)
+            current_dollar_risk = current_position_size * (entry_price - chosen['SL'])
+            current_dollar_reward = current_position_size * (chosen['TP'] - entry_price)
         else:
-            current_dollar_risk = current_position_size * (risk_params['SL'] - entry_price)
-            current_dollar_reward = current_position_size * (entry_price - risk_params['TP'])
-        
+            current_dollar_risk = current_position_size * (chosen['SL'] - entry_price)
+            current_dollar_reward = current_position_size * (entry_price - chosen['TP'])
+
         dollar_risk = optimal_dollar_risk
         dollar_reward = optimal_dollar_reward
         rr_ratio = dollar_reward / dollar_risk if dollar_risk > 0 else 0
@@ -406,16 +443,28 @@ class PositionRiskManager:
             'garch_sigma_ann': volatility_metrics.get('garch_sigma_ann'),
             'sigmaH_blend_abs': sigmaH_blend_abs,
             
-            # Risk management levels
-            'stop_loss': risk_params['SL'],
-            'take_profit': risk_params['TP'],
-            'sl_distance': risk_params['SL_distance'],
-            'tp_distance': risk_params['TP_distance'],
+            # Risk management levels (selected per config)
+            'stop_loss': chosen['SL'],
+            'take_profit': chosen['TP'],
+            'sl_distance': chosen['SL_distance'],
+            'tp_distance': chosen['TP_distance'],
             'sl_pct': sl_pct,
             'tp_pct': tp_pct,
             'k_multiplier': k_sl_eff,
             'm_multiplier': m_tp_eff,
-            
+
+            # Also expose static and dynamic for transparency
+            'static_stop_loss': static_sl,
+            'static_take_profit': static_tp,
+            'static_sl_distance': static_sl_dist,
+            'static_tp_distance': static_tp_dist,
+            'dynamic_stop_loss': dyn_sl,
+            'dynamic_take_profit': dyn_tp,
+            'dynamic_sl_distance': dyn_sl_dist_from_entry,
+            'dynamic_tp_distance': dyn_tp_dist_from_entry,
+            'dynamic_p_tp': dynamic_info.get('p_tp'),
+            'dynamic_reasons': dynamic_info.get('reasons', []),
+
             # Scale-outs
             'tp1': tp1,
             'tp2': tp2,
@@ -428,7 +477,7 @@ class PositionRiskManager:
             'risk_target_pct': risk_target_pct,
             'volatility_adjustment': vol_adjustment,
             'confidence_adjustment': confidence_adjustment,
-            
+
             # Risk metrics
             'dollar_risk': dollar_risk,
             'dollar_reward': dollar_reward,
@@ -570,17 +619,49 @@ class PositionRiskManager:
             self.cfg,
             account_metrics=self.account_metrics
         )
-    
-    def export_to_json(self, filename: str = "risk_analysis.json"):
-        """Export risk analysis to JSON file."""
-        output = {
-            'timestamp': dt.datetime.now(dt.timezone.utc).isoformat(),
-            'positions': self.risk_analysis,
-            'portfolio': self._calculate_portfolio_metrics() if self.risk_analysis else {},
-            'account': self.account_metrics
-        }
-        
-        with open(filename, 'w') as f:
-            json.dump(output, f, indent=2, default=str)
-        
-        print(f"\nRisk analysis exported to {filename}")
+
+    def monitor_positions(self, interval_seconds: int = 60, iterations: int = 10) -> None:
+        """
+        Real-time monitoring loop that refreshes live prices and updates dynamic SL/TP
+        for currently open positions without re-fitting models each tick.
+
+        This uses last computed sigma_H and ATR from the analysis to quickly update
+        state-anchored levels and their probability.
+        """
+        if not self.risk_analysis:
+            self.analyze_all_positions()
+        if not self.positions:
+            return
+        for _ in range(max(1, iterations)):
+            for pos in self.positions:
+                sym = pos['symbol']
+                analysis = self.risk_analysis.get(sym)
+                if not analysis:
+                    continue
+                live = get_live_price_bybit(self.exchange, sym) or analysis.get('current_price')
+                sigma_H = analysis.get('sigma_H')
+                atr = analysis.get('atr')
+                side = analysis.get('side')
+                entry = analysis.get('entry_price')
+                if None in (live, sigma_H, atr, side, entry):
+                    continue
+                dyn = dynamic_levels_from_state(
+                    current_price=float(live),
+                    entry_price=float(entry),
+                    side=side,
+                    sigma_H=float(sigma_H),
+                    atr=float(atr),
+                    base_k=float(analysis.get('k_multiplier', 2.0)),
+                    base_m=float(analysis.get('m_multiplier', 3.0)),
+                    cfg=self.cfg,
+                )
+                # Update dynamic fields in-place
+                self.risk_analysis[sym]['current_price'] = float(live)
+                self.risk_analysis[sym]['dynamic_stop_loss'] = float(dyn['SL'])
+                self.risk_analysis[sym]['dynamic_take_profit'] = float(dyn['TP'])
+                self.risk_analysis[sym]['dynamic_sl_distance'] = abs(float(entry) - float(dyn['SL']))
+                self.risk_analysis[sym]['dynamic_tp_distance'] = abs(float(dyn['TP']) - float(entry))
+                self.risk_analysis[sym]['dynamic_p_tp'] = float(dyn.get('p_tp', 0.0))
+                self.risk_analysis[sym]['dynamic_reasons'] = dyn.get('reasons', [])
+            # sleep without importing time at module top to avoid rate-limits, use dt delay
+            time.sleep(interval_seconds)

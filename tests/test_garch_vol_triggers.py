@@ -104,3 +104,54 @@ def test_sl_tp_and_size_zero_vol():
     assert params['SL'] == 100.0
     assert params['TP'] == 100.0
     assert params['Q'] == 0.0 # Should not be infinite, should be 0
+
+import math
+from market_analysis.garch_vol_triggers import probability_hit_tp_before_sl, dynamic_levels_from_state
+from .test_data import ohlcv_sample_data
+
+
+def test_probability_hit_tp_before_sl_symmetric():
+    price = 100.0
+    sigma = 2.0
+    # symmetric distances → ~0.5
+    p_long = probability_hit_tp_before_sl(price=price, tp=price+sigma, sl=price-sigma, sigma_price=sigma, side='long')
+    p_short = probability_hit_tp_before_sl(price=price, tp=price-sigma, sl=price+sigma, sigma_price=sigma, side='short')
+    assert 0.45 <= p_long <= 0.55
+    assert 0.45 <= p_short <= 0.55
+
+
+def test_probability_hit_tp_before_sl_asymmetric_favors_tp():
+    price = 100.0
+    sigma = 2.0
+    # TP closer than SL for long → prob > 0.5
+    p = probability_hit_tp_before_sl(price=price, tp=price+1.0, sl=price-4.0, sigma_price=sigma, side='long')
+    assert p > 0.5
+
+
+essential_cfg = {
+    'vol': {'horizon_hours': 4},
+    'stops': {'atr_trail_mult_initial': 2.0, 'atr_trail_mult_late': 1.5, 'breakeven_after_R': 1.0},
+    'prob': {'prob_alpha': 1.0, 'prob_target': 0.55, 'm_min': 2.0, 'm_max': 6.0, 'm_step': 0.5},
+}
+
+
+def test_dynamic_levels_from_state_long_tightens_after_breakeven():
+    df = ohlcv_sample_data()
+    entry = float(df['close'].iloc[2])
+    current = entry + 50.0  # unrealized profit
+    atr = 20.0
+    sigma_H = 0.001  # 0.1% to ensure r_unreal >= breakeven
+    out = dynamic_levels_from_state(current_price=current, entry_price=entry, side='long', sigma_H=sigma_H, atr=atr, base_k=2.0, base_m=3.0, cfg=essential_cfg)
+    assert out['SL'] >= entry  # tightened to at least breakeven or trail
+    assert out['TP'] > current
+    assert 0.0 <= out['p_tp'] <= 1.0
+
+
+def test_dynamic_levels_from_state_short_directionality():
+    entry = 100.0
+    current = 95.0
+    atr = 2.0
+    sigma_H = 0.02
+    out = dynamic_levels_from_state(current_price=current, entry_price=entry, side='short', sigma_H=sigma_H, atr=atr, base_k=2.0, base_m=3.0, cfg=essential_cfg)
+    assert out['TP'] < current  # TP should be below for shorts
+    assert out['SL'] > current  # SL above for shorts
