@@ -108,62 +108,74 @@
     let lastSampleAt = 0;
     const pnlSeries = []; // array of { t: number, unreal: number, realized: number }
 
-    // Initialize Chart.js line chart
-    const pnlChart = new Chart(pnlCanvas.getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [
-          {
-            label: 'Unrealized PnL ($)',
-            data: [],
-            borderColor: getComputedStyle(document.documentElement).getPropertyValue('--info').trim() || '#58a6ff',
-            backgroundColor: 'rgba(88,166,255,0.12)',
-            borderWidth: 2,
-            tension: 0.3,
-            pointRadius: 0,
+    // Initialize Chart.js line chart (guarded)
+    let pnlChart = null;
+    (function initPnlChart(){
+      try {
+        pnlChart = new Chart(pnlCanvas.getContext('2d'), {
+          type: 'line',
+          data: {
+            labels: [],
+            datasets: [
+              {
+                label: 'Unrealized PnL ($)',
+                data: [],
+                borderColor: getComputedStyle(document.documentElement).getPropertyValue('--info').trim() || '#58a6ff',
+                backgroundColor: 'rgba(88,166,255,0.12)',
+                borderWidth: 2,
+                tension: 0.3,
+                pointRadius: 2,
+                pointHoverRadius: 3,
+                hitRadius: 6,
+              },
+              {
+                label: "Realized PnL Today ($)",
+                data: [],
+                borderColor: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#62d2a2',
+                backgroundColor: 'rgba(98,210,162,0.10)',
+                borderWidth: 2,
+                tension: 0.3,
+                pointRadius: 2,
+                pointHoverRadius: 3,
+                hitRadius: 6,
+              }
+            ]
           },
-          {
-            label: "Realized PnL Today ($)",
-            data: [],
-            borderColor: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#62d2a2',
-            backgroundColor: 'rgba(98,210,162,0.10)',
-            borderWidth: 2,
-            tension: 0.3,
-            pointRadius: 0,
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        layout: { padding: { top: 6, right: 8, bottom: 6, left: 8 } },
-        scales: {
-          x: {
-            ticks: { color: '#9fb0d3', maxTicksLimit: 8, autoSkip: true },
-            grid: { color: 'rgba(255,255,255,0.05)' }
-          },
-          y: {
-            ticks: {
-              color: '#9fb0d3',
-              callback: (val) => `$${Number(val).toLocaleString(undefined, {maximumFractionDigits: 0})}`
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: { top: 6, right: 8, bottom: 6, left: 8 } },
+            scales: {
+              x: {
+                ticks: { color: '#9fb0d3', maxTicksLimit: 8, autoSkip: true },
+                grid: { color: 'rgba(255,255,255,0.07)' }
+              },
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  color: '#9fb0d3',
+                  callback: (val) => `$${Number(val).toLocaleString(undefined, {maximumFractionDigits: 0})}`
+                },
+                grid: { color: 'rgba(255,255,255,0.07)' }
+              }
             },
-            grid: { color: 'rgba(255,255,255,0.05)' }
-          }
-        },
-        plugins: {
-          legend: { display: true, position: 'top', labels: { color: '#e7eefc', font: { size: 11 } } },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => {
-                const v = ctx.parsed.y;
-                return `${ctx.dataset.label}: $${Number(v).toLocaleString(undefined, {maximumFractionDigits: 2})}`;
+            plugins: {
+              legend: { display: true, position: 'top', labels: { color: '#e7eefc', font: { size: 11 } } },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => {
+                    const v = ctx.parsed.y;
+                    return `${ctx.dataset.label}: $${Number(v).toLocaleString(undefined, {maximumFractionDigits: 2})}`;
+                  }
+                }
               }
             }
           }
-        }
+        });
+      } catch (e) {
+        console.error('Chart init failed:', e);
       }
-    });
+    })();
 
     function setConn(state) {
       if (state === 'open') { connDot.style.background = '#26a69a'; connLabel.textContent = 'Live'; }
@@ -252,7 +264,25 @@
       });
     }
 
+    function adjustLegend() {
+      if (!pnlChart) return;
+      const w = pnlCanvas.parentElement?.clientWidth || 0;
+      const display = w >= 420; // hide legend on very narrow widths to preserve height
+      if (pnlChart.options.plugins.legend.display !== display) {
+        pnlChart.options.plugins.legend.display = display;
+        pnlChart.update('none');
+      }
+    }
+    window.addEventListener('resize', () => {
+      adjustLegend();
+      const p = pnlCanvas.parentElement;
+      if (p && pnlChart) pnlChart.resize(p.clientWidth, p.clientHeight);
+    });
+    // initial adjust
+    adjustLegend();
+
     function updatePnlChart(account, portfolio) {
+      if (!pnlChart) return;
       const now = Date.now();
       if (!account && !portfolio) return;
       const unreal = Number((account && account.total_unrealized_pnl) ?? (portfolio && portfolio.total_unrealized_pnl) ?? (account && account.totalUnrealizedPnl) ?? 0);
@@ -265,9 +295,21 @@
       const cutoff = now - THIRTY_FOUR_HOURS_MS;
       while (pnlSeries.length && pnlSeries[0].t < cutoff) pnlSeries.shift();
       const labels = pnlSeries.map(p => new Date(p.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      const unrealArr = pnlSeries.map(p => p.unreal);
+      const realizedArr = pnlSeries.map(p => p.realized);
       pnlChart.data.labels = labels;
-      pnlChart.data.datasets[0].data = pnlSeries.map(p => p.unreal);
-      pnlChart.data.datasets[1].data = pnlSeries.map(p => p.realized);
+      pnlChart.data.datasets[0].data = unrealArr;
+      pnlChart.data.datasets[1].data = realizedArr;
+      // show points when few samples, hide when many
+      const few = labels.length < 10;
+      pnlChart.data.datasets.forEach(ds => { ds.pointRadius = few ? 2 : 0; });
+      // ensure y-scale is visible even if values are constant
+      const allVals = unrealArr.concat(realizedArr).filter(v => Number.isFinite(v));
+      let minV = Math.min(...(allVals.length ? allVals : [0]));
+      let maxV = Math.max(...(allVals.length ? allVals : [0]));
+      if (minV === maxV) { minV -= 1; maxV += 1; }
+      pnlChart.options.scales.y.min = minV;
+      pnlChart.options.scales.y.max = maxV;
       pnlChart.update('none');
     }
 
