@@ -481,6 +481,20 @@ class PositionRiskManager:
         dollar_reward = optimal_dollar_reward
         rr_ratio = dollar_reward / dollar_risk if dollar_risk > 0 else 0
 
+        risk_deviation_threshold = float(
+            risk_cfg.get("risk_deviation_warning_threshold", 1.2)
+        )
+        risk_deviation_ratio: Optional[float] = None
+        risk_size_overage_pct: Optional[float] = None
+        if optimal_dollar_risk > 0:
+            risk_deviation_ratio = current_dollar_risk / optimal_dollar_risk
+            risk_size_overage_pct = max(0.0, (risk_deviation_ratio - 1.0) * 100.0)
+
+        risk_size_overage_triggered = (
+            risk_deviation_ratio is not None
+            and risk_deviation_ratio > risk_deviation_threshold
+        )
+
         # Position health assessment & recommended action
         pnl_pct = position.get("percentage")
         try:
@@ -494,6 +508,9 @@ class PositionRiskManager:
         if liq_buffer_safe is False:
             health = "CRITICAL"
             action = "Reduce exposure immediately – stop is too close to liquidation"
+        elif risk_size_overage_triggered:
+            health = "WARNING"
+            action = "Trim position size to align with risk limits"
         elif pnl_pct <= -5.0:
             health = "CRITICAL"
             action = "Cut risk or close position – loss beyond 5%"
@@ -572,6 +589,10 @@ class PositionRiskManager:
             "dollar_reward": dollar_reward,
             "current_dollar_risk": current_dollar_risk,
             "current_dollar_reward": current_dollar_reward,
+            "risk_deviation_ratio": risk_deviation_ratio,
+            "risk_size_overage_pct": risk_size_overage_pct,
+            "risk_size_overage_threshold": risk_deviation_threshold,
+            "risk_size_overage_triggered": risk_size_overage_triggered,
             "risk_reward_ratio": rr_ratio,
             "liquidation_buffer_safe": liq_buffer_safe,
             "liquidation_buffer_ratio": liq_buffer_ratio,
