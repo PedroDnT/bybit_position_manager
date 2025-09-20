@@ -181,6 +181,34 @@ class PositionRiskManager:
         print(f"Found {len(self.positions)} open position(s)")
         return self.positions
 
+    def _resolve_account_equity(self, position: Dict[str, Any]) -> float:
+        """Derive an equity figure for risk budgeting from available metrics."""
+
+        metrics = self.account_metrics or {}
+
+        def _safe_float(value: Any) -> float:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return 0.0
+
+        for key in ("total_equity", "total_wallet_balance"):
+            candidate = _safe_float(metrics.get(key))
+            if candidate > 0:
+                return candidate
+
+        total_margin_balance = _safe_float(metrics.get("total_margin_balance"))
+        available_balance = _safe_float(metrics.get("available_balance"))
+        implied_equity = total_margin_balance + available_balance
+        for candidate in (implied_equity, total_margin_balance, available_balance):
+            if candidate > 0:
+                return candidate
+
+        try:
+            return abs(float(position.get("notional", 0.0)))
+        except (TypeError, ValueError):
+            return 0.0
+
     def analyze_position_volatility(
         self, position: Dict[str, Any], timeframe: str = "4h", lookback_days: int = 30
     ) -> Dict[str, Any]:
@@ -329,6 +357,35 @@ class PositionRiskManager:
         risk_target_pct = base_pct * risk_mult
         risk_target_pct = float(np.clip(risk_target_pct, min_p, max_p))
 
+        # Clamp the equity-based risk budget to configured floor/cap (defaults 0.5%-1%)
+        equity_floor = float(risk_cfg.get("min_equity_risk_frac", 0.005))
+        equity_cap = float(risk_cfg.get("max_equity_risk_frac", 0.01))
+        if equity_floor > equity_cap:
+            equity_floor, equity_cap = equity_cap, equity_floor
+        risk_fraction = float(np.clip(risk_target_pct, equity_floor, equity_cap))
+
+        # Resolve account equity (total_equity → wallet → implied) for sizing budget
+        account_equity = self._resolve_account_equity(position)
+        target_risk_dollars = account_equity * risk_fraction
+
+        available_balance = 0.0
+        try:
+            available_balance = float(self.account_metrics.get("available_balance", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            available_balance = 0.0
+        if available_balance > 0:
+            target_risk_dollars = min(target_risk_dollars, available_balance)
+
+        if target_risk_dollars <= 0 and account_equity <= 0:
+            # Fall back to legacy notional budgeting if account metrics unavailable
+            try:
+                notional = abs(float(position.get("notional", 0.0)))
+            except (TypeError, ValueError):
+                notional = 0.0
+            target_risk_dollars = notional * risk_fraction
+
+        target_risk_dollars = max(target_risk_dollars, 0.0)
+
         # Professional stop-loss and take-profit levels (2-4× ATR)
         stops_cfg = self.cfg.get("stops", {})
 
@@ -370,7 +427,6 @@ class PositionRiskManager:
         m_tp_eff = max(m_tp_eff, 2.5)  # Minimum 2.5× ATR for targets
 
         # Calculate SL/TP levels with optimal position sizing
-        target_risk_dollars = position["notional"] * risk_target_pct
         risk_params = sl_tp_and_size(
             entry_price=entry_price,
             sigma_H=primary_sigma_frac,
@@ -496,6 +552,20 @@ class PositionRiskManager:
         dollar_reward = optimal_dollar_reward
         rr_ratio = dollar_reward / dollar_risk if dollar_risk > 0 else 0
 
+        risk_deviation_threshold = float(
+            risk_cfg.get("risk_deviation_warning_threshold", 1.2)
+        )
+        risk_deviation_ratio: Optional[float] = None
+        risk_size_overage_pct: Optional[float] = None
+        if optimal_dollar_risk > 0:
+            risk_deviation_ratio = current_dollar_risk / optimal_dollar_risk
+            risk_size_overage_pct = max(0.0, (risk_deviation_ratio - 1.0) * 100.0)
+
+        risk_size_overage_triggered = (
+            risk_deviation_ratio is not None
+            and risk_deviation_ratio > risk_deviation_threshold
+        )
+
         # Position health assessment & recommended action
         pnl_pct = position.get("percentage")
         try:
@@ -509,6 +579,9 @@ class PositionRiskManager:
         if liq_buffer_safe is False:
             health = "CRITICAL"
             action = "Reduce exposure immediately – stop is too close to liquidation"
+        elif risk_size_overage_triggered:
+            health = "WARNING"
+            action = "Trim position size to align with risk limits"
         elif pnl_pct <= -5.0:
             health = "CRITICAL"
             action = "Cut risk or close position – loss beyond 5%"
@@ -530,6 +603,10 @@ class PositionRiskManager:
             "position_size": current_position_size,
             "optimal_position_size": optimal_position_size,
             "notional": position["notional"],
+            "account_equity_used": account_equity,
+            "risk_target_fraction": risk_fraction,
+            "risk_fraction_bounds": {"min": equity_floor, "max": equity_cap},
+            "target_risk_dollars": target_risk_dollars,
             "leverage": leverage,
             "current_pnl": position.get("unrealizedPnl", 0),
             "current_pnl_pct": position.get("percentage", 0),
@@ -583,6 +660,10 @@ class PositionRiskManager:
             "dollar_reward": dollar_reward,
             "current_dollar_risk": current_dollar_risk,
             "current_dollar_reward": current_dollar_reward,
+            "risk_deviation_ratio": risk_deviation_ratio,
+            "risk_size_overage_pct": risk_size_overage_pct,
+            "risk_size_overage_threshold": risk_deviation_threshold,
+            "risk_size_overage_triggered": risk_size_overage_triggered,
             "risk_reward_ratio": rr_ratio,
             "liquidation_buffer_safe": liq_buffer_safe,
             "liquidation_buffer_ratio": liq_buffer_ratio,

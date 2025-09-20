@@ -131,6 +131,7 @@ pytest -q
 - Computes ATR and volatility forecasts
 - Chooses effective SL/TP based on regime and confidence
 - Computes R, R:R, and position sizing guidance
+- Budgets risk off account equity with configurable 0.5–1% guard rails and reports the applied dollars
 - Emits per-position analysis dict and portfolio report
 
 #### Liquidation buffer guardrail
@@ -154,6 +155,7 @@ pytest -q
 - Incorporates probability of hitting TP before SL and adapts the effective TP multiplier
 
 Key configuration keys:
+- [risk] min_equity_risk_frac / max_equity_risk_frac for equity-based risk guard rails
 - [vol] horizon_hours
 - [stops] breakeven_after_R, atr_trail_mult_initial, atr_trail_mult_late
 - [prob] prob_alpha, prob_target, m_min, m_max, m_step
