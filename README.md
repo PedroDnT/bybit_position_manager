@@ -1,33 +1,51 @@
-# Advanced Crypto Position Risk Management System
+# Advanced Crypto Risk Manager
 
-A comprehensive cryptocurrency trading risk management system that combines real-time position monitoring with advanced volatility analysis using GARCH and HAR-RV models, plus portfolio correlation analysis.
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-## 🎯 Overview
+A comprehensive cryptocurrency trading risk management system that combines real-time position monitoring with advanced volatility analysis. This tool provides sophisticated risk assessment capabilities including GARCH volatility modeling, portfolio correlation analysis, and adaptive stop-loss mechanisms.
 
-This system provides sophisticated risk management for cryptocurrency trading by:
+## 🚀 Features
 
-- **Real-time Position Monitoring**: Fetches live positions from Bybit
-- **Advanced Volatility Analysis**: Uses GARCH(1,1) and HAR-RV models for volatility forecasting
-- **Dynamic SL/TP Calculation**: Calculates optimal stop-loss and take-profit levels based on volatility
-- **Position Sizing**: Recommends optimal position sizes based on target risk
-- **Portfolio Risk Assessment**: Analyzes overall portfolio risk and provides actionable recommendations
-- **Account Overview**: Displays total equity, available balance, and today's realized/unrealized PnL
-- **Correlation Analysis**: Identifies correlated positions and applies cluster risk caps
-- **Configuration Management**: Dynamic settings loading with fallback to defaults
+- **📊 Real-time Position Monitoring**: Track open positions across multiple exchanges
+- **📈 Advanced Volatility Analysis**: GARCH modeling for volatility forecasting  
+- **🔗 Portfolio Correlation Analysis**: Understand position interdependencies
+- **🎯 Adaptive Stop-Loss**: Dynamic stop-loss adjustment based on market conditions
+- **📋 Risk Metrics**: Comprehensive risk assessment and reporting
+- **🔄 Multi-Exchange Support**: Currently supports Bybit with extensible architecture
+- **⚡ High Performance**: Optimized for real-time trading environments
+- **🛡️ Risk Management**: Advanced position sizing and risk control
 
 ## 📁 Project Structure
 
 ```
 market_analysis/
-├── position_risk_manager.py    # Main risk management system
-├── garch_vol_triggers.py       # GARCH and HAR-RV volatility models
-├── get_position.py             # Position fetching utilities
-├── atr_sl_gpt.py              # ATR-based risk management
-├── requirements.txt           # Python dependencies
-├── settings.toml             # Configuration file (create from settings.example.toml)
-├── settings.example.toml     # Example configuration
-├── risk_analysis.json        # Generated risk analysis output
-└── README.md                 # This file
+├── __init__.py
+├── __main__.py              # Main entry point and CLI interface
+├── adaptive_stop_loss.py    # Adaptive stop-loss implementation
+├── atr_sl_gpt.py           # ATR-based stop-loss logic
+├── confidence.py           # Confidence interval calculations
+├── config.py               # Configuration management
+├── demo_adaptive_stop_loss.py  # Demo script for adaptive stop-loss
+├── garch_vol_triggers.py   # GARCH volatility analysis
+├── get_position.py         # Position data retrieval from exchanges
+├── position_risk_manager.py # Main risk management logic
+├── reporting.py            # Report generation and output formatting
+├── test_adaptive_stop_loss.py # Tests for adaptive stop-loss
+└── utils.py                # Utility functions and helpers
+
+Configuration & Setup:
+├── settings.toml           # Your configuration file (create from example)
+├── pyproject.toml          # Project metadata and dependencies
+├── requirements.txt        # Python dependencies
+├── Dockerfile             # Container deployment
+└── README.md              # This documentation
+
+Tests:
+└── tests/
+    ├── test_*.py          # Comprehensive test suite
+    └── test_data.py       # Test data and fixtures
 ```
 
 ## 🚀 Quick Start
@@ -85,12 +103,14 @@ Alternatively, you can use Docker to build and run the application in a containe
 
 From the project root directory, build the Docker image:
 ```bash
-docker build -t risk-manager-app .
+export BYBIT_API_KEY="your_api_key"
+export BYBIT_API_SECRET="your_api_secret"
+export BYBIT_SANDBOX="false"
 ```
 
-#### Running the Container
+## 🧪 Running Tests
 
-Run the application inside a Docker container. You will need to mount your `.env` file and `settings.toml` into the container so it can access your configuration and API keys.
+Execute the test suite to ensure everything is working correctly:
 
 ```bash
 docker run --rm -v "$(pwd)/.env":/app/.env -v "$(pwd)/settings.toml":/app/settings.toml risk-manager-app

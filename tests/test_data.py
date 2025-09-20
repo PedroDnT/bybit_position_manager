@@ -1,6 +1,7 @@
 import pandas as pd
 from io import StringIO
 
+
 def ohlcv_sample_data() -> pd.DataFrame:
     """
     Provides a sample OHLCV pandas DataFrame for testing.
@@ -20,6 +21,6 @@ timestamp,open,high,low,close,volume
 1673308800000,16580,16650,16570,16630,140
 """
     df = pd.read_csv(StringIO(csv_data))
-    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-    df = df.set_index('timestamp')
+    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+    df = df.set_index("timestamp")
     return df
