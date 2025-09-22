@@ -33,25 +33,7 @@ market_analysis/
 ├── position_risk_manager.py # Main risk management logic
 ├── reporting.py            # Report generation and output formatting
 ├── test_adaptive_stop_loss.py # Tests for adaptive stop-loss
-├── utils.py                # Utility functions and helpers
-└── web_server.py           # FastAPI web server for frontend integration
-
-Frontend Dashboard:
-└── frontend/
-    ├── app/                # Next.js 14 App Router pages
-    │   ├── page.tsx       # Main dashboard
-    │   ├── layout.tsx     # Root layout
-    │   ├── portfolio-overview/ # Portfolio metrics page
-    │   ├── positions/     # Position monitoring page
-    │   ├── risk-analysis/ # Risk analysis page
-    │   ├── alerts/        # Alerts management page
-    │   └── performance/   # Performance tracking page
-    ├── components/        # Reusable React components
-    │   └── ui/           # UI component library
-    ├── lib/              # Frontend utilities
-    ├── public/           # Static assets
-    ├── package.json      # Node.js dependencies
-    └── next.config.mjs   # Next.js configuration
+└── utils.py                # Utility functions and helpers
 
 Configuration & Setup:
 ├── settings.toml           # Your configuration file (create from example)
@@ -97,8 +79,6 @@ Once installed, you can run the analysis using the new command-line tool:
 risk-manager
 ```
 
-The command prints a per-position table that surfaces the GARCH-driven stop loss, take profit, and trailing stop guidance alongside risk budget, sizing multipliers, and the volatility model that produced the levels.
-
 To run in real-time monitoring mode:
 
 ```bash
@@ -143,210 +123,6 @@ The `--rm` flag will automatically remove the container when it exits. The `-v` 
 pytest -q
 ```
 
-## 🖥️ Frontend Dashboard
-
-The project includes a modern, real-time web dashboard built with Next.js that provides a comprehensive interface for monitoring your trading positions and risk metrics.
-
-### 🚀 Frontend Quick Start
-
-#### Prerequisites
-- Node.js 18+ and npm/pnpm
-- Backend API server running on `http://localhost:8000`
-
-#### Installation & Setup
-
-1. **Navigate to the frontend directory:**
-   ```bash
-   cd frontend
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   # or
-   pnpm install
-   ```
-
-3. **Start the development server:**
-   ```bash
-   npm run dev
-   # or
-   pnpm dev
-   ```
-
-4. **Access the dashboard:**
-   Open your browser and navigate to `http://localhost:3000`
-
-### 📊 Dashboard Features
-
-#### **Main Dashboard (`/`)**
-- **Real-time Risk Overview**: Live risk scores and portfolio health status
-- **Position Summary**: Quick view of all open positions with key metrics
-- **Alert Center**: Critical alerts and notifications
-- **Connection Status**: Backend API connectivity indicator
-- **Navigation Sidebar**: Access to all dashboard sections
-
-#### **Portfolio Overview (`/portfolio-overview`)**
-- **Portfolio Metrics**: Total notional, unrealized PnL, risk utilization
-- **Risk Distribution**: Visual breakdown of risk across positions
-- **Performance Summary**: Portfolio-level performance indicators
-- **Risk-Reward Analysis**: Portfolio-wide risk-reward ratios
-
-#### **Positions (`/positions`)**
-- **Position Table**: Detailed view of all open positions
-- **Individual Position Cards**: Per-position risk analysis
-- **Stop-Loss & Take-Profit Levels**: GARCH-based recommendations
-- **Liquidation Buffers**: Safety margin indicators
-- **Position Health Scores**: Risk assessment for each position
-
-#### **Risk Analysis (`/risk-analysis`)**
-- **GARCH Volatility Models**: Advanced volatility forecasting
-- **Correlation Matrix**: Position interdependency analysis
-- **Risk Metrics**: VaR, expected shortfall, and other risk measures
-- **Scenario Analysis**: Stress testing and what-if scenarios
-
-#### **Alerts (`/alerts`)**
-- **Active Alerts**: Current risk alerts and warnings
-- **Alert History**: Past alerts and their resolution
-- **Alert Configuration**: Customize alert thresholds and notifications
-- **Severity Filtering**: Filter alerts by severity level
-
-#### **Performance (`/performance`)**
-- **P&L Tracking**: Historical performance analysis
-- **Risk-Adjusted Returns**: Sharpe ratio and other risk-adjusted metrics
-- **Drawdown Analysis**: Maximum drawdown and recovery periods
-- **Performance Attribution**: Breakdown by position and strategy
-
-### 🎨 Dashboard Interface
-
-#### **Color-Coded Risk Levels**
-- 🔴 **Critical**: Immediate attention required
-- 🟠 **High**: Monitor closely
-- 🟡 **Medium**: Standard monitoring
-- 🟢 **Low**: Normal operation
-
-#### **Real-Time Updates**
-- WebSocket connection for live data updates
-- Automatic refresh of risk metrics
-- Real-time alert notifications
-- Connection status indicators
-
-#### **Responsive Design**
-- Mobile-friendly interface
-- Collapsible sidebar for smaller screens
-- Adaptive layouts for different screen sizes
-- Touch-friendly controls
-
-### 🔧 Frontend Configuration
-
-#### **Environment Variables**
-Create a `.env.local` file in the frontend directory:
-```bash
-# API Configuration
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_WS_URL=ws://localhost:8000
-
-# Dashboard Settings
-NEXT_PUBLIC_REFRESH_INTERVAL=5000
-NEXT_PUBLIC_ALERT_SOUND=true
-```
-
-#### **Build for Production**
-```bash
-# Build the application
-npm run build
-
-# Start production server
-npm start
-```
-
-#### **Docker Deployment**
-```bash
-# Build frontend Docker image
-docker build -t risk-manager-frontend ./frontend
-
-# Run frontend container
-docker run -p 3000:3000 risk-manager-frontend
-```
-
-### 🛠️ Development
-
-#### **Project Structure**
-```
-frontend/
-├── app/                    # Next.js 14 App Router
-│   ├── page.tsx           # Main dashboard
-│   ├── layout.tsx         # Root layout
-│   ├── globals.css        # Global styles
-│   ├── portfolio-overview/ # Portfolio section
-│   ├── positions/         # Positions section
-│   ├── risk-analysis/     # Risk analysis section
-│   ├── alerts/           # Alerts section
-│   └── performance/      # Performance section
-├── components/            # Reusable components
-│   └── ui/               # UI component library
-├── lib/                  # Utility functions
-├── public/               # Static assets
-└── styles/               # Additional styles
-```
-
-#### **Key Technologies**
-- **Next.js 14**: React framework with App Router
-- **TypeScript**: Type-safe development
-- **Tailwind CSS**: Utility-first styling
-- **Lucide React**: Icon library
-- **WebSocket**: Real-time data connection
-
-#### **API Integration**
-The frontend connects to the backend API for:
-- Position data retrieval
-- Risk analysis results
-- Real-time updates via WebSocket
-- Alert management
-- Performance metrics
-
-#### **Customization**
-- Modify `tailwind.config.ts` for custom styling
-- Update `components/ui/` for custom UI components
-- Configure `next.config.mjs` for build settings
-- Customize alert sounds and notifications
-
-### 🔍 Troubleshooting
-
-#### **Common Issues**
-
-1. **Dashboard shows "Page not found"**
-   ```bash
-   # Clear Next.js cache and restart
-   rm -rf .next
-   npm run dev
-   ```
-
-2. **API connection errors**
-   - Ensure backend server is running on port 8000
-   - Check CORS settings in backend configuration
-   - Verify API endpoints are accessible
-
-3. **WebSocket connection issues**
-   - Check WebSocket URL configuration
-   - Ensure firewall allows WebSocket connections
-   - Verify backend WebSocket implementation
-
-4. **Build errors**
-   ```bash
-   # Clear node modules and reinstall
-   rm -rf node_modules package-lock.json
-   npm install
-   ```
-
-### 📱 Mobile Access
-
-The dashboard is fully responsive and can be accessed on mobile devices:
-- Touch-friendly interface
-- Optimized layouts for small screens
-- Swipe gestures for navigation
-- Mobile-specific alert notifications
-
 ## 🔧 Core Components & Logic Flow
 
 ### 1. Position Risk Manager (`position_risk_manager.py`)
@@ -356,15 +132,7 @@ The dashboard is fully responsive and can be accessed on mobile devices:
 - Chooses effective SL/TP based on regime and confidence
 - Computes R, R:R, and position sizing guidance
 - Budgets risk off account equity with configurable 0.5–1% guard rails and reports the applied dollars
-- Enforces a drawdown-aware portfolio risk cap that scales planned losses when they exceed a configurable fraction of equity
 - Emits per-position analysis dict and portfolio report
-
-#### Liquidation buffer guardrail
-
-- The `[risk].liquidation_buffer_multiple` setting controls how far the liquidation price must sit beyond the recommended stop.
-- By default the guardrail requires the liquidation price to be at least **2.0 ×** the stop distance (roughly twice the ATR-based cushion).
-- Increase the multiple to demand more breathing room during high leverage or volatile regimes; lower it if exchange margin rules already provide a generous cushion.
-- Reports surface both the observed buffer ratio and the configured threshold so thin cushions are easy to spot.
 
 ... existing code ...
 
@@ -381,7 +149,6 @@ The dashboard is fully responsive and can be accessed on mobile devices:
 
 Key configuration keys:
 - [risk] min_equity_risk_frac / max_equity_risk_frac for equity-based risk guard rails
-- [portfolio] max_portfolio_risk_frac / min_portfolio_risk_frac / drawdown_multipliers for the equity-level risk throttle
 - [vol] horizon_hours
 - [stops] breakeven_after_R, atr_trail_mult_initial, atr_trail_mult_late
 - [prob] prob_alpha, prob_target, m_min, m_max, m_step

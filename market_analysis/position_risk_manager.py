@@ -53,58 +53,6 @@ from .reporting import generate_report, _calculate_portfolio_metrics
 from .adaptive_stop_loss import AdaptiveStopLossManager
 
 
-DEFAULT_LIQUIDATION_BUFFER_MULTIPLE = 2.0
-
-
-def evaluate_liquidation_buffer(
-    stop_distance: float,
-    liquidation_distance: Optional[float],
-    threshold_ratio: float,
-) -> Dict[str, Optional[float]]:
-    """Assess whether the liquidation buffer is sufficient."""
-
-    def _to_float(value: Any, default: Optional[float] = None) -> Optional[float]:
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return default
-
-    stop_distance = _to_float(stop_distance, 0.0) or 0.0
-    threshold_ratio = max(
-        _to_float(threshold_ratio, DEFAULT_LIQUIDATION_BUFFER_MULTIPLE)
-        or DEFAULT_LIQUIDATION_BUFFER_MULTIPLE,
-        0.0,
-    )
-    required_distance = threshold_ratio * stop_distance if stop_distance > 0 else 0.0
-    liquidation_distance = _to_float(liquidation_distance)
-
-    if liquidation_distance is None:
-        return {
-            "safe": None,
-            "ratio": None,
-            "threshold_ratio": threshold_ratio,
-            "required_distance": required_distance if stop_distance > 0 else None,
-        }
-
-    if stop_distance <= 0:
-        return {
-            "safe": True if threshold_ratio == 0 else False,
-            "ratio": None,
-            "threshold_ratio": threshold_ratio,
-            "required_distance": None,
-        }
-
-    ratio = liquidation_distance / stop_distance
-    safe = ratio >= threshold_ratio if threshold_ratio > 0 else True
-
-    return {
-        "safe": safe,
-        "ratio": ratio,
-        "threshold_ratio": threshold_ratio,
-        "required_distance": required_distance,
-    }
-
-
 class PositionRiskManager:
     """Manages risk analysis for all open positions."""
 
@@ -119,15 +67,6 @@ class PositionRiskManager:
         self.risk_analysis = {}
         self.account_metrics: Dict[str, Any] = {}
         self.cfg = settings
-        buffer_multiple_cfg = (
-            self.cfg.get("risk", {}).get(
-                "liquidation_buffer_multiple", DEFAULT_LIQUIDATION_BUFFER_MULTIPLE
-            )
-        )
-        try:
-            self.liquidation_buffer_multiple = max(float(buffer_multiple_cfg), 0.0)
-        except (TypeError, ValueError):
-            self.liquidation_buffer_multiple = DEFAULT_LIQUIDATION_BUFFER_MULTIPLE
 
         # Centralized exchange object creation
         load_dotenv()
@@ -497,34 +436,24 @@ class PositionRiskManager:
             r_unreal = max(0.0, (entry_price - live_price) / R_unit) if R_unit > 0 else 0.0
         trail_suggestion = compute_trailing_stop(entry=live_price, direction=side, atr=atr, cfg=self.cfg, r_unrealized=r_unreal)
 
-        # Check liquidation buffer using configurable cushion multiple
-        liquidation_price_raw = position.get("liquidationPrice")
-        try:
-            liquidation_price = (
-                float(liquidation_price_raw)
-                if liquidation_price_raw is not None
-                else None
-            )
-        except (TypeError, ValueError):
-            liquidation_price = None
+        # Check liquidation buffer if liquidation price exists
+        liquidation_price = position.get("liquidationPrice")
+        liq_buffer_safe = True
+        liq_buffer_ratio = None
 
-        liq_buffer_safe: Optional[bool] = None
-        liq_buffer_ratio: Optional[float] = None
-        liq_buffer_threshold = self.liquidation_buffer_multiple
-        liq_buffer_required_distance: Optional[float] = None
-
-        if liquidation_price is not None:
-            stop_distance = float(chosen['SL_distance']) if 'SL_distance' in chosen else 0.0
-            liquidation_distance = abs(float(chosen['SL']) - liquidation_price)
-            buffer_eval = evaluate_liquidation_buffer(
-                stop_distance=stop_distance,
-                liquidation_distance=liquidation_distance,
-                threshold_ratio=self.liquidation_buffer_multiple,
-            )
-            liq_buffer_safe = buffer_eval["safe"]
-            liq_buffer_ratio = buffer_eval["ratio"]
-            liq_buffer_threshold = buffer_eval["threshold_ratio"]
-            liq_buffer_required_distance = buffer_eval["required_distance"]
+        if liquidation_price:
+            if side == "long":
+                sl_to_liq_distance = abs(risk_params["SL"] - liquidation_price)
+                sl_to_entry_distance = abs(entry_price - risk_params["SL"])
+                if sl_to_entry_distance > 0:
+                    liq_buffer_ratio = sl_to_liq_distance / sl_to_entry_distance
+                    liq_buffer_safe = risk_params["SL"] > liquidation_price * 1.1
+            else:  # short
+                sl_to_liq_distance = abs(liquidation_price - risk_params["SL"])
+                sl_to_entry_distance = abs(risk_params["SL"] - entry_price)
+                if sl_to_entry_distance > 0:
+                    liq_buffer_ratio = sl_to_liq_distance / sl_to_entry_distance
+                    liq_buffer_safe = risk_params["SL"] < liquidation_price * 0.9
 
         # Calculate dollar risk and reward using OPTIMAL position size
         optimal_position_size = chosen['Q']
@@ -552,20 +481,6 @@ class PositionRiskManager:
         dollar_reward = optimal_dollar_reward
         rr_ratio = dollar_reward / dollar_risk if dollar_risk > 0 else 0
 
-        risk_deviation_threshold = float(
-            risk_cfg.get("risk_deviation_warning_threshold", 1.2)
-        )
-        risk_deviation_ratio: Optional[float] = None
-        risk_size_overage_pct: Optional[float] = None
-        if optimal_dollar_risk > 0:
-            risk_deviation_ratio = current_dollar_risk / optimal_dollar_risk
-            risk_size_overage_pct = max(0.0, (risk_deviation_ratio - 1.0) * 100.0)
-
-        risk_size_overage_triggered = (
-            risk_deviation_ratio is not None
-            and risk_deviation_ratio > risk_deviation_threshold
-        )
-
         # Position health assessment & recommended action
         pnl_pct = position.get("percentage")
         try:
@@ -579,9 +494,6 @@ class PositionRiskManager:
         if liq_buffer_safe is False:
             health = "CRITICAL"
             action = "Reduce exposure immediately – stop is too close to liquidation"
-        elif risk_size_overage_triggered:
-            health = "WARNING"
-            action = "Trim position size to align with risk limits"
         elif pnl_pct <= -5.0:
             health = "CRITICAL"
             action = "Cut risk or close position – loss beyond 5%"
@@ -660,15 +572,9 @@ class PositionRiskManager:
             "dollar_reward": dollar_reward,
             "current_dollar_risk": current_dollar_risk,
             "current_dollar_reward": current_dollar_reward,
-            "risk_deviation_ratio": risk_deviation_ratio,
-            "risk_size_overage_pct": risk_size_overage_pct,
-            "risk_size_overage_threshold": risk_deviation_threshold,
-            "risk_size_overage_triggered": risk_size_overage_triggered,
             "risk_reward_ratio": rr_ratio,
             "liquidation_buffer_safe": liq_buffer_safe,
             "liquidation_buffer_ratio": liq_buffer_ratio,
-            "liquidation_buffer_threshold": liq_buffer_threshold,
-            "liquidation_buffer_required_distance": liq_buffer_required_distance,
             "position_health": health,
             "action_required": action,
         }
@@ -710,8 +616,6 @@ class PositionRiskManager:
         print("\n" + "=" * 80)
         print("ANALYZING POSITION RISKS")
         print("=" * 80)
-
-        self.risk_analysis = {}
 
         for position in self.positions:
             analysis = self.analyze_position_volatility(position)
@@ -758,10 +662,10 @@ class PositionRiskManager:
             
             self.risk_analysis[position["symbol"]] = analysis
 
-        # Apply portfolio-level guardrails then compute metrics
-        self._apply_portfolio_risk_guards()
+        # Calculate portfolio-wide metrics and correlation caps
         portfolio_metrics = self._calculate_portfolio_metrics()
         self.risk_analysis["portfolio"] = portfolio_metrics
+        self._apply_portfolio_correlation_cap()
 
         return {
             "positions": self.risk_analysis,
@@ -772,134 +676,6 @@ class PositionRiskManager:
     def _calculate_portfolio_metrics(self) -> Dict[str, Any]:
         """Calculate portfolio-wide risk metrics."""
         return _calculate_portfolio_metrics(self.positions, self.risk_analysis)
-
-    def _apply_portfolio_risk_guards(self) -> None:
-        """Apply portfolio-wide risk throttles and correlation caps."""
-
-        if not self.positions:
-            return
-
-        self._apply_portfolio_risk_throttle()
-        self._apply_portfolio_correlation_cap()
-
-    def _apply_portfolio_risk_throttle(self) -> None:
-        """Scale positions when planned risk breaches the equity-level cap."""
-
-        # Collect per-position analyses that contribute to risk budgeting
-        analyzable_positions = [
-            (_symbol, analysis)
-            for _symbol, analysis in self.risk_analysis.items()
-            if isinstance(analysis, dict)
-            and analysis.get("dollar_risk", 0.0) is not None
-        ]
-
-        if not analyzable_positions:
-            return
-
-        def _sum_risk() -> float:
-            return sum(
-                float(analysis.get("dollar_risk", 0.0) or 0.0)
-                for _symbol, analysis in analyzable_positions
-            )
-
-        total_risk_dollars = _sum_risk()
-        if total_risk_dollars <= 0:
-            return
-
-        port_cfg = self.cfg.get("portfolio", {})
-        base_frac = float(port_cfg.get("max_portfolio_risk_frac", 0.04))
-        floor_frac = float(port_cfg.get("min_portfolio_risk_frac", 0.01))
-        if floor_frac > base_frac:
-            floor_frac, base_frac = base_frac, floor_frac
-
-        # Determine account equity for the portfolio cap
-        account_equity = self._resolve_account_equity({})
-        if account_equity <= 0:
-            # Fall back to sum of notionals if equity cannot be resolved
-            account_equity = sum(
-                abs(float(pos.get("notional", 0.0) or 0.0)) for pos in self.positions
-            )
-
-        if account_equity <= 0:
-            return
-
-        todays_realized = 0.0
-        todays_total = 0.0
-        try:
-            todays_realized = float(self.account_metrics.get("todays_realized_pnl", 0.0) or 0.0)
-        except (TypeError, ValueError):
-            todays_realized = 0.0
-        try:
-            todays_total = float(self.account_metrics.get("todays_total_pnl", todays_realized) or 0.0)
-        except (TypeError, ValueError):
-            todays_total = todays_realized
-
-        drawdown_basis = min(todays_realized, todays_total, 0.0)
-        drawdown_frac = drawdown_basis / account_equity if account_equity > 0 else 0.0
-
-        default_steps = [
-            {"pnl_frac": -0.02, "multiplier": 0.75},
-            {"pnl_frac": -0.04, "multiplier": 0.5},
-        ]
-        drawdown_steps = port_cfg.get("drawdown_multipliers", default_steps)
-        if not isinstance(drawdown_steps, list):
-            drawdown_steps = default_steps
-
-        adjusted_frac = max(base_frac, floor_frac)
-
-        for step in sorted(drawdown_steps, key=lambda x: float(x.get("pnl_frac", 0.0))):
-            try:
-                threshold = float(step.get("pnl_frac", 0.0))
-            except (TypeError, ValueError):
-                threshold = 0.0
-            try:
-                multiplier = float(step.get("multiplier", 1.0))
-            except (TypeError, ValueError):
-                multiplier = 1.0
-
-            multiplier = max(min(multiplier, 1.0), 0.0)
-            if drawdown_frac <= threshold:
-                adjusted_frac = max(adjusted_frac * multiplier, floor_frac)
-
-        risk_cap_dollars = account_equity * adjusted_frac
-
-        if risk_cap_dollars <= 0:
-            return
-
-        throttle_applied = total_risk_dollars > risk_cap_dollars
-        scale = min(1.0, risk_cap_dollars / total_risk_dollars) if total_risk_dollars > 0 else 1.0
-
-        if throttle_applied and scale < 1.0:
-            for _symbol, analysis in analyzable_positions:
-                try:
-                    analysis["optimal_position_size"] *= scale
-                except (KeyError, TypeError):
-                    pass
-                for key in ("dollar_risk", "dollar_reward", "target_risk_dollars"):
-                    if key in analysis and analysis[key] is not None:
-                        analysis[key] = float(analysis[key]) * scale
-
-                existing_note = analysis.get("portfolio_note", "")
-                throttle_note = (
-                    f"Portfolio throttle scaled risk by {scale:.2f} (cap ${risk_cap_dollars:,.0f})"
-                )
-                analysis["portfolio_note"] = (
-                    f"{existing_note} | {throttle_note}".strip(" |") if existing_note else throttle_note
-                )
-                analysis["portfolio_throttle_scale"] = scale
-
-        post_risk_dollars = _sum_risk()
-
-        self.risk_analysis["portfolio_throttle"] = {
-            "total_planned_risk": total_risk_dollars,
-            "post_scale_total_risk": post_risk_dollars,
-            "risk_cap_fraction": adjusted_frac,
-            "risk_cap_dollars": risk_cap_dollars,
-            "account_equity": account_equity,
-            "drawdown_fraction": drawdown_frac,
-            "throttle_applied": throttle_applied and scale < 1.0,
-            "scale": scale if throttle_applied else 1.0,
-        }
 
     def _apply_portfolio_correlation_cap(self) -> None:
         """Compute correlation clusters and cap cluster risk as per settings."""
@@ -980,15 +756,6 @@ class PositionRiskManager:
                     analysis["portfolio_note"] = (
                         f"Cluster {cluster} risk capped {cluster_risk:.2f}→{max_cluster_risk:.2f} (ρ≥{corr_threshold})"
                     )
-
-        throttle_info = self.risk_analysis.get("portfolio_throttle")
-        if isinstance(throttle_info, dict):
-            updated_total = sum(
-                float(analysis.get("dollar_risk", 0.0) or 0.0)
-                for analysis in self.risk_analysis.values()
-                if isinstance(analysis, dict) and analysis.get("dollar_risk") is not None
-            )
-            throttle_info["post_scale_total_risk"] = updated_total
 
     def update_stop_loss_orders(self, dry_run: bool = True) -> Dict[str, Any]:
         """Update stop-loss orders for existing positions based on adaptive calculations.

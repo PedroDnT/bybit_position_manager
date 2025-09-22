@@ -1,21 +1,18 @@
 ================================================================================
 POSITION RISK MANAGEMENT REPORT
-Generated: 2025-09-20 23:54:09 UTC
+Generated: 2025-09-19 21:42:16 UTC
 ================================================================================
 
 📊 PORTFOLIO SUMMARY
 ----------------------------------------
-Total Positions: 11
-Total Notional: $88,661.12
-Total Unrealized PnL: $-1,450.49
-Total Risk (if all SL hit): $787.89
-Total Reward (if all TP hit): $592.44
-Portfolio Risk/Reward: 0.75:1
-Max Portfolio Risk Budget: $3,546.44 (4.00% of equity)
-Portfolio Risk Utilization: 22.2% of cap
-Current Drawdown Anchor: 0.00%
+Total Positions: 10
+Total Notional: $76,999.20
+Total Unrealized PnL: $-993.40
+Total Risk (if all SL hit): $1,866.90
+Total Reward (if all TP hit): $694.24
+Portfolio Risk/Reward: 0.37:1
 
-⚠️  Positions at Risk: LQTY/USDT:USDT, W/USDT:USDT, TIA/USDT:USDT, BRETT/USDT:USDT, IMX/USDT:USDT, LINEA/USDT:USDT, SUI/USDT:USDT, XRP/USDT:USDT, AVAX/USDT:USDT
+⚠️  Positions at Risk: BRETT/USDT:USDT, IMX/USDT:USDT, TIA/USDT:USDT, LQTY/USDT:USDT, AVAX/USDT:USDT, APT/USDT:USDT, SUI/USDT:USDT, XRP/USDT:USDT
 
 🏦 ACCOUNT OVERVIEW
 ----------------------------------------
@@ -30,472 +27,444 @@ Today's Combined PnL: $0.00
 INDIVIDUAL POSITION ANALYSIS
 ================================================================================
 
-Position 1: SOL/USDT:USDT
+Position 1: BRETT/USDT:USDT
 ----------------------------------------
 Current Status:
-  Entry: $238.556871 | Current: $239.300000 | PnL: 0.31%
-  Size: 36.7 | Notional: $8755.04 | Leverage: 20.0x
-  Liquidation Price: $123.546708
+  Entry: $0.057130 | Current: $0.053630 | PnL: -6.09%
+  Size: 88510.0 | Notional: $5056.58 | Leverage: 10.0x
+  Liquidation Price: $0.011637
 
 Volatility Analysis:
   Method: VOL_BLEND
-  ATR(20): $4.083838 (1.71% of price)
-  HAR-RV σ(annual): 23.8%
-  GARCH σ(annual): 54.8%
-  Vol blend (H=4h): 1.969518 abs
+  ATR(20): $0.002190 (3.83% of price)
+  HAR-RV σ(annual): 54.4%
+  GARCH σ(annual): 117.6%
+  Vol blend (H=4h): 0.016084 abs
 
 🎯 Recommended Levels:
-  STOP LOSS: $236.040172 (-1.05% from entry)
-    💰 Optimal Risk: $87.55 (for optimal size: 34.79)
-    💰 Current Risk: $92.36 (for current size: 36.70)
-    ✅ Safe from liquidation (buffer 44.70× vs ≥ 2.00×)
-  TAKE PROFIT: $243.251306 (1.97% from entry)
-    💰 Optimal Reward: $163.31
-    💰 Current Reward: $172.29
-    📊 Risk/Reward: 1.87:1
+  STOP LOSS: $0.011610 (-79.68% from entry)
+    💰 Optimal Risk: $68.50 (for optimal size: 1504.89)
+    💰 Current Risk: $4028.95 (for current size: 88510.00)
+    ⚠️  TOO CLOSE TO LIQUIDATION!
+  TAKE PROFIT: $0.083827 (46.73% from entry)
+    💰 Optimal Reward: $40.18
+    💰 Current Reward: $2362.99
+    📊 Risk/Reward: 0.59:1
   Scale-outs:
-    • Close 40% @ 242.331919
-    • Close 30% @ 246.106967
-    • Leave 30% runner; Trail suggestion: 231.132323
-  Professional Analysis:
-    Confidence Score: 2/5
-    Confidence Factors: Uptrend (EMA20 > EMA50), Low volatility regime
-    Volatility Adjustment: 1.00x
-    Confidence Adjustment: 1.10x
-  Risk Management:
-    Risk Target: 2.50% of notional
-    Stop Loss: 1.65× ATR (Professional: 2-4×)
-    Take Profit: 3.30× ATR (Professional: 2.5-4.5×)
-
-Risk Assessment:
-  Status: 💚 PROFITABLE
-  Action: Trail stop or scale out to lock in gains
-
-Position 2: APT/USDT:USDT
-----------------------------------------
-Current Status:
-  Entry: $4.586322 | Current: $4.617000 | PnL: 0.67%
-  Size: 1900.78 | Notional: $8717.59 | Leverage: 20.0x
-  Liquidation Price: $2.382251
-
-Volatility Analysis:
-  Method: VOL_BLEND
-  ATR(20): $0.089347 (1.95% of price)
-  HAR-RV σ(annual): 33.3%
-  GARCH σ(annual): 60.5%
-  Vol blend (H=4h): 0.045370 abs
-
-🎯 Recommended Levels:
-  STOP LOSS: $4.541639 (-0.97% from entry)
-    💰 Optimal Risk: $87.18 (for optimal size: 1950.98)
-    💰 Current Risk: $84.93 (for current size: 1900.78)
-    ✅ Safe from liquidation (buffer 48.33× vs ≥ 2.00×)
-  TAKE PROFIT: $4.708347 (2.66% from entry)
-    💰 Optimal Reward: $238.07
-    💰 Current Reward: $231.94
-    📊 Risk/Reward: 2.73:1
-  Scale-outs:
-    • Close 40% @ 4.653346
-    • Close 30% @ 4.720371
-    • Leave 30% runner; Trail suggestion: 4.438307
-  Professional Analysis:
-    Confidence Score: 2/5
-    Confidence Factors: Uptrend (EMA20 > EMA50), Volatility models aligned
-    Volatility Adjustment: 1.00x
-    Confidence Adjustment: 1.10x
-  Risk Management:
-    Risk Target: 2.50% of notional
-    Stop Loss: 1.65× ATR (Professional: 2-4×)
-    Take Profit: 3.30× ATR (Professional: 2.5-4.5×)
-
-Risk Assessment:
-  Status: 💚 PROFITABLE
-  Action: Trail stop or scale out to lock in gains
-
-Position 3: LQTY/USDT:USDT
-----------------------------------------
-Current Status:
-  Entry: $0.918072 | Current: $0.910600 | PnL: -0.81%
-  Size: 8918.5 | Notional: $8187.83 | Leverage: 14.0x
-  Liquidation Price: $0.434270
-
-Volatility Analysis:
-  Method: VOL_BLEND
-  ATR(20): $0.025361 (2.76% of price)
-  HAR-RV σ(annual): 36.5%
-  GARCH σ(annual): 83.2%
-  Vol blend (H=4h): 0.011632 abs
-
-🎯 Recommended Levels:
-  STOP LOSS: $0.882680 (-3.86% from entry)
-    💰 Optimal Risk: $81.88 (for optimal size: 2313.47)
-    💰 Current Risk: $315.64 (for current size: 8918.50)
-    ✅ Safe from liquidation (buffer 12.67× vs ≥ 2.00×)
-  TAKE PROFIT: $0.933674 (1.70% from entry)
-    💰 Optimal Reward: $36.10
-    💰 Current Reward: $139.15
-    📊 Risk/Reward: 0.44:1
-  Scale-outs:
-    • Close 40% @ 0.971160
-    • Close 30% @ 1.024248
-    • Leave 30% runner; Trail suggestion: 0.859878
+    • Close 40% @ 0.125410
+    • Close 30% @ 0.193689
+    • Leave 30% runner; Trail suggestion: 0.049250
   Professional Analysis:
     Confidence Score: 2/5
     Confidence Factors: Uptrend (EMA20 > EMA50), Positive momentum (RSI > 50)
-    Volatility Adjustment: 1.30x
-    Confidence Adjustment: 1.10x
-  Risk Management:
-    Risk Target: 2.50% of notional
-    Stop Loss: 2.42× ATR (Professional: 2-4×)
-    Take Profit: 4.40× ATR (Professional: 2.5-4.5×)
-    ⚠️  POSITION SIZE TOO LARGE: Current is 3.9x optimal
-
-Risk Assessment:
-  Status: 🟡 WARNING
-  Action: Trim position size to align with risk limits
-
-Position 4: W/USDT:USDT
-----------------------------------------
-Current Status:
-  Entry: $0.114645 | Current: $0.120000 | PnL: 4.67%
-  Size: 86107.7 | Notional: $9871.80 | Leverage: 20.0x
-  Liquidation Price: $0.070665
-
-Volatility Analysis:
-  Method: VOL_BLEND
-  ATR(20): $0.005506 (4.80% of price)
-  HAR-RV σ(annual): 68.1%
-  GARCH σ(annual): 134.6%
-  Vol blend (H=4h): 0.002483 abs
-
-🎯 Recommended Levels:
-  STOP LOSS: $0.114645 (0.00% from entry)
-    💰 Optimal Risk: $0.00 (for optimal size: 20949.58)
-    💰 Current Risk: $0.00 (for current size: 86107.70)
-    ⚠️  TOO CLOSE TO LIQUIDATION! (requires ≥ 2.00× cushion)
-  TAKE PROFIT: $0.125199 (9.21% from entry)
-    💰 Optimal Reward: $221.10
-    💰 Current Reward: $908.77
-    📊 Risk/Reward: 0.00:1
-  Scale-outs:
-    • Close 40% @ 0.114645
-    • Close 30% @ 0.114645
-    • Leave 30% runner; Trail suggestion: 0.108987
-  Professional Analysis:
-    Confidence Score: 2/5
-    Confidence Factors: Uptrend (EMA20 > EMA50), High volatility regime, Positive momentum (RSI > 50), Volatility models aligned
-    Volatility Adjustment: 1.30x
-    Confidence Adjustment: 1.10x
-  Risk Management:
-    Risk Target: 2.50% of notional
-    Stop Loss: 1.90× ATR (Professional: 2-4×)
-    Take Profit: 3.79× ATR (Professional: 2.5-4.5×)
-    ⚠️  POSITION SIZE TOO LARGE: Current is 4.1x optimal
-
-Risk Assessment:
-  Status: 🔴 CRITICAL
-  Action: Reduce exposure immediately – stop is too close to liquidation
-
-Position 5: TIA/USDT:USDT
-----------------------------------------
-Current Status:
-  Entry: $1.730000 | Current: $1.723000 | PnL: -0.39%
-  Size: 1844.6 | Notional: $3191.16 | Leverage: 20.0x
-
-Volatility Analysis:
-  Method: VOL_BLEND
-  ATR(20): $0.040231 (2.33% of price)
-  HAR-RV σ(annual): 30.8%
-  GARCH σ(annual): 90.3%
-  Vol blend (H=4h): 0.016824 abs
-
-🎯 Recommended Levels:
-  STOP LOSS: $1.696610 (-1.93% from entry)
-    💰 Optimal Risk: $31.91 (for optimal size: 955.71)
-    💰 Current Risk: $61.59 (for current size: 1844.60)
-  TAKE PROFIT: $1.756512 (1.53% from entry)
-    💰 Optimal Reward: $25.34
-    💰 Current Reward: $48.90
-    📊 Risk/Reward: 0.79:1
-  Scale-outs:
-    • Close 40% @ 1.780086
-    • Close 30% @ 1.830171
-    • Leave 30% runner; Trail suggestion: 1.642538
-  Professional Analysis:
-    Confidence Score: 1/5
-    Confidence Factors: Low volatility regime
-    Volatility Adjustment: 1.00x
-    Confidence Adjustment: 1.05x
-  Risk Management:
-    Risk Target: 2.25% of notional
-    Stop Loss: 1.58× ATR (Professional: 2-4×)
-    Take Profit: 3.15× ATR (Professional: 2.5-4.5×)
-    ⚠️  POSITION SIZE TOO LARGE: Current is 1.9x optimal
-
-Risk Assessment:
-  Status: 🟡 WARNING
-  Action: Trim position size to align with risk limits
-
-Position 6: BRETT/USDT:USDT
-----------------------------------------
-Current Status:
-  Entry: $0.057130 | Current: $0.051760 | PnL: -9.40%
-  Size: 88510.0 | Notional: $5056.58 | Leverage: 10.0x
-  Liquidation Price: $0.003764
-
-Volatility Analysis:
-  Method: VOL_BLEND
-  ATR(20): $0.001984 (3.47% of price)
-  HAR-RV σ(annual): 47.3%
-  GARCH σ(annual): 113.2%
-  Vol blend (H=4h): 0.000961 abs
-
-🎯 Recommended Levels:
-  STOP LOSS: $0.049448 (-13.45% from entry)
-    💰 Optimal Risk: $50.57 (for optimal size: 6582.52)
-    💰 Current Risk: $679.92 (for current size: 88510.00)
-    ✅ Safe from liquidation (buffer 5.95× vs ≥ 2.00×)
-  TAKE PROFIT: $0.053501 (-6.35% from entry)
-    💰 Optimal Reward: $-23.89
-    💰 Current Reward: $-321.25
-    📊 Risk/Reward: -0.47:1
-  Scale-outs:
-    • Close 40% @ 0.068653
-    • Close 30% @ 0.080175
-    • Leave 30% runner; Trail suggestion: 0.047792
-  Professional Analysis:
-    Confidence Score: 1/5
-    Confidence Factors: Uptrend (EMA20 > EMA50)
-    Volatility Adjustment: 1.30x
-    Confidence Adjustment: 1.05x
-  Risk Management:
-    Risk Target: 2.25% of notional
-    Stop Loss: 2.66× ATR (Professional: 2-4×)
-    Take Profit: 4.83× ATR (Professional: 2.5-4.5×)
-    ⚠️  POSITION SIZE TOO LARGE: Current is 13.4x optimal
-
-Risk Assessment:
-  Status: 🟡 WARNING
-  Action: Trim position size to align with risk limits
-
-Position 7: IMX/USDT:USDT
-----------------------------------------
-Current Status:
-  Entry: $0.859900 | Current: $0.805500 | PnL: -6.26%
-  Size: 4818.5 | Notional: $4143.43 | Leverage: 10.0x
-
-Volatility Analysis:
-  Method: VOL_BLEND
-  ATR(20): $0.033741 (3.92% of price)
-  HAR-RV σ(annual): 59.1%
-  GARCH σ(annual): 91.2%
-  Vol blend (H=4h): 0.014153 abs
-
-🎯 Recommended Levels:
-  STOP LOSS: $0.768605 (-10.62% from entry)
-    💰 Optimal Risk: $41.43 (for optimal size: 453.85)
-    💰 Current Risk: $439.91 (for current size: 4818.50)
-  TAKE PROFIT: $0.832015 (-3.24% from entry)
-    💰 Optimal Reward: $-12.66
-    💰 Current Reward: $-134.36
-    📊 Risk/Reward: -0.31:1
-  Scale-outs:
-    • Close 40% @ 0.996843
-    • Close 30% @ 1.133786
-    • Leave 30% runner; Trail suggestion: 0.738018
-  Professional Analysis:
-    Confidence Score: 2/5
-    Confidence Factors: Uptrend (EMA20 > EMA50), Volatility models aligned
-    Volatility Adjustment: 1.30x
+    Volatility Adjustment: 1.15x
     Confidence Adjustment: 1.10x
   Risk Management:
     Risk Target: 2.50% of notional
     Stop Loss: 2.78× ATR (Professional: 2-4×)
     Take Profit: 5.06× ATR (Professional: 2.5-4.5×)
-    ⚠️  POSITION SIZE TOO LARGE: Current is 10.6x optimal
+  Portfolio cap: Cluster ['BRETT/USDT:USDT', 'IMX/USDT:USDT', 'TIA/USDT:USDT', 'LQTY/USDT:USDT', 'AVAX/USDT:USDT', 'SOL/USDT:USDT', 'APT/USDT:USDT', 'SUI/USDT:USDT', 'XRP/USDT:USDT'] risk capped 1722.59→933.45 (ρ≥0.7)
+    ⚠️  POSITION SIZE TOO LARGE: Current is 58.8x optimal
 
 Risk Assessment:
-  Status: 🟡 WARNING
-  Action: Trim position size to align with risk limits
+  Status: 🔴 CRITICAL
+  Action: Reduce exposure immediately – stop is too close to liquidation
 
-Position 8: LINEA/USDT:USDT
+Position 2: W/USDT:USDT
 ----------------------------------------
 Current Status:
-  Entry: $0.030177 | Current: $0.029110 | PnL: -3.57%
-  Size: 140970.0 | Notional: $4254.11 | Leverage: 22.0x
+  Entry: $0.109043 | Current: $0.110920 | PnL: 1.70%
+  Size: 52937.1 | Notional: $5772.40 | Leverage: 15.0x
+  Liquidation Price: $0.040654
 
 Volatility Analysis:
   Method: VOL_BLEND
-  ATR(20): $0.001752 (5.81% of price)
-  HAR-RV σ(annual): 74.5%
-  Vol blend (H=4h): 0.000576 abs
+  ATR(20): $0.004848 (4.45% of price)
+  HAR-RV σ(annual): 120.1%
+  GARCH σ(annual): 121.5%
+  Vol blend (H=4h): 0.023698 abs
 
 🎯 Recommended Levels:
-  STOP LOSS: $0.027865 (-7.66% from entry)
-    💰 Optimal Risk: $42.54 (for optimal size: 18395.05)
-    💰 Current Risk: $326.01 (for current size: 140970.00)
-  TAKE PROFIT: $0.030221 (0.14% from entry)
-    💰 Optimal Reward: $0.79
-    💰 Current Reward: $6.08
-    📊 Risk/Reward: 0.02:1
+  STOP LOSS: $0.053535 (-50.90% from entry)
+    💰 Optimal Risk: $144.31 (for optimal size: 2599.84)
+    💰 Current Risk: $2938.39 (for current size: 52937.10)
+    ✅ Safe from liquidation
+  TAKE PROFIT: $0.159132 (45.94% from entry)
+    💰 Optimal Reward: $130.22
+    💰 Current Reward: $2651.60
+    📊 Risk/Reward: 0.90:1
   Scale-outs:
-    • Close 40% @ 0.033646
-    • Close 30% @ 0.037115
-    • Leave 30% runner; Trail suggestion: 0.025606
+    • Close 40% @ 0.192304
+    • Close 30% @ 0.275564
+    • Leave 30% runner; Trail suggestion: 0.101224
   Professional Analysis:
     Confidence Score: 3/5
-    Confidence Factors: Uptrend (EMA20 > EMA50), Low volatility regime, Positive momentum (RSI > 50)
-    Volatility Adjustment: 1.30x
+    Confidence Factors: Uptrend (EMA20 > EMA50), Positive momentum (RSI > 50), Volatility models aligned
+    Volatility Adjustment: 1.15x
     Confidence Adjustment: 1.15x
   Risk Management:
     Risk Target: 2.50% of notional
-    Stop Loss: 2.24× ATR (Professional: 2-4×)
-    Take Profit: 4.49× ATR (Professional: 2.5-4.5×)
-    ⚠️  POSITION SIZE TOO LARGE: Current is 7.7x optimal
+    Stop Loss: 2.38× ATR (Professional: 2-4×)
+    Take Profit: 4.63× ATR (Professional: 2.5-4.5×)
+    ⚠️  POSITION SIZE TOO LARGE: Current is 20.4x optimal
 
 Risk Assessment:
-  Status: 🟡 WARNING
-  Action: Trim position size to align with risk limits
+  Status: 💚 PROFITABLE
+  Action: Trail stop or scale out to lock in gains
 
-Position 9: SUI/USDT:USDT
+Position 3: IMX/USDT:USDT
 ----------------------------------------
 Current Status:
-  Entry: $3.764359 | Current: $3.656000 | PnL: -2.88%
-  Size: 4170.0 | Notional: $15697.38 | Leverage: 20.0x
-  Liquidation Price: $2.637260
+  Entry: $0.859900 | Current: $0.858300 | PnL: -0.20%
+  Size: 4818.5 | Notional: $4143.43 | Leverage: 10.0x
+  Liquidation Price: $0.086465
 
 Volatility Analysis:
   Method: VOL_BLEND
-  ATR(20): $0.074899 (1.99% of price)
-  HAR-RV σ(annual): 36.6%
-  GARCH σ(annual): 73.8%
-  Vol blend (H=4h): 0.042951 abs
+  ATR(20): $0.036610 (4.26% of price)
+  HAR-RV σ(annual): 25.7%
+  GARCH σ(annual): 91.2%
+  Vol blend (H=4h): 0.012145 abs
 
 🎯 Recommended Levels:
-  STOP LOSS: $3.590299 (-4.62% from entry)
-    💰 Optimal Risk: $156.97 (for optimal size: 901.84)
-    💰 Current Risk: $725.83 (for current size: 4170.00)
-    ✅ Safe from liquidation (buffer 5.48× vs ≥ 2.00×)
-  TAKE PROFIT: $3.739429 (-0.66% from entry)
-    💰 Optimal Reward: $-22.48
-    💰 Current Reward: $-103.95
-    📊 Risk/Reward: -0.14:1
+  STOP LOSS: $0.826097 (-3.93% from entry)
+    💰 Optimal Risk: $50.52 (for optimal size: 1494.49)
+    💰 Current Risk: $162.88 (for current size: 4818.50)
+    ✅ Safe from liquidation
+  TAKE PROFIT: $0.882545 (2.63% from entry)
+    💰 Optimal Reward: $33.84
+    💰 Current Reward: $109.11
+    📊 Risk/Reward: 0.67:1
   Scale-outs:
-    • Close 40% @ 4.025447
-    • Close 30% @ 4.286536
-    • Leave 30% runner; Trail suggestion: 3.506202
+    • Close 40% @ 0.910605
+    • Close 30% @ 0.961309
+    • Leave 30% runner; Trail suggestion: 0.785081
   Professional Analysis:
     Confidence Score: 1/5
-    Confidence Factors: Uptrend (EMA20 > EMA50)
+    Confidence Factors: Uptrend (EMA20 > EMA50), Positive momentum (RSI > 50), Volatility models disagree
+    Volatility Adjustment: 1.15x
+    Confidence Adjustment: 1.05x
+  Risk Management:
+    Risk Target: 2.25% of notional
+    Stop Loss: 2.66× ATR (Professional: 2-4×)
+    Take Profit: 4.83× ATR (Professional: 2.5-4.5×)
+  Portfolio cap: Cluster ['BRETT/USDT:USDT', 'IMX/USDT:USDT', 'TIA/USDT:USDT', 'LQTY/USDT:USDT', 'AVAX/USDT:USDT', 'SOL/USDT:USDT', 'APT/USDT:USDT', 'SUI/USDT:USDT', 'XRP/USDT:USDT'] risk capped 1722.59→933.45 (ρ≥0.7)
+    ⚠️  POSITION SIZE TOO LARGE: Current is 3.2x optimal
+
+Risk Assessment:
+  Status: 🟡 WARNING
+  Action: Re-evaluate – reward is not compensating for risk
+
+Position 4: TIA/USDT:USDT
+----------------------------------------
+Current Status:
+  Entry: $1.730000 | Current: $1.726000 | PnL: -0.22%
+  Size: 1844.6 | Notional: $3191.16 | Leverage: 20.0x
+
+Volatility Analysis:
+  Method: VOL_BLEND
+  ATR(20): $0.041514 (2.40% of price)
+  HAR-RV σ(annual): 32.6%
+  GARCH σ(annual): 91.4%
+  Vol blend (H=4h): 0.013868 abs
+
+🎯 Recommended Levels:
+  STOP LOSS: $1.702133 (-1.61% from entry)
+    💰 Optimal Risk: $43.23 (for optimal size: 1551.37)
+    💰 Current Risk: $51.40 (for current size: 1844.60)
+    ✅ Safe from liquidation
+  TAKE PROFIT: $1.753671 (1.37% from entry)
+    💰 Optimal Reward: $36.72
+    💰 Current Reward: $43.66
+    📊 Risk/Reward: 0.85:1
+  Scale-outs:
+    • Close 40% @ 1.771800
+    • Close 30% @ 1.813600
+    • Leave 30% runner; Trail suggestion: 1.642972
+  Professional Analysis:
+    Confidence Score: 3/5
+    Confidence Factors: Uptrend (EMA20 > EMA50), Low volatility regime, Positive momentum (RSI > 50)
+    Volatility Adjustment: 1.00x
+    Confidence Adjustment: 1.15x
+  Risk Management:
+    Risk Target: 2.50% of notional
+    Stop Loss: 1.72× ATR (Professional: 2-4×)
+    Take Profit: 3.45× ATR (Professional: 2.5-4.5×)
+  Portfolio cap: Cluster ['BRETT/USDT:USDT', 'IMX/USDT:USDT', 'TIA/USDT:USDT', 'LQTY/USDT:USDT', 'AVAX/USDT:USDT', 'SOL/USDT:USDT', 'APT/USDT:USDT', 'SUI/USDT:USDT', 'XRP/USDT:USDT'] risk capped 1722.59→933.45 (ρ≥0.7)
+
+Risk Assessment:
+  Status: 🟡 WARNING
+  Action: Re-evaluate – reward is not compensating for risk
+
+Position 5: LQTY/USDT:USDT
+----------------------------------------
+Current Status:
+  Entry: $0.924937 | Current: $0.921900 | PnL: -0.38%
+  Size: 4115.3 | Notional: $3806.39 | Leverage: 10.0x
+  Liquidation Price: $0.017795
+
+Volatility Analysis:
+  Method: VOL_BLEND
+  ATR(20): $0.026614 (2.88% of price)
+  HAR-RV σ(annual): 36.9%
+  GARCH σ(annual): 100.3%
+  Vol blend (H=4h): 0.012744 abs
+
+🎯 Recommended Levels:
+  STOP LOSS: $0.891160 (-3.65% from entry)
+    💰 Optimal Risk: $51.57 (for optimal size: 1526.68)
+    💰 Current Risk: $139.00 (for current size: 4115.30)
+    ✅ Safe from liquidation
+  TAKE PROFIT: $0.947305 (2.42% from entry)
+    💰 Optimal Reward: $34.15
+    💰 Current Reward: $92.05
+    📊 Risk/Reward: 0.66:1
+  Scale-outs:
+    • Close 40% @ 0.975601
+    • Close 30% @ 1.026266
+    • Leave 30% runner; Trail suggestion: 0.868672
+  Professional Analysis:
+    Confidence Score: 2/5
+    Confidence Factors: Uptrend (EMA20 > EMA50), Positive momentum (RSI > 50)
+    Volatility Adjustment: 1.00x
+    Confidence Adjustment: 1.10x
+  Risk Management:
+    Risk Target: 2.50% of notional
+    Stop Loss: 2.42× ATR (Professional: 2-4×)
+    Take Profit: 4.40× ATR (Professional: 2.5-4.5×)
+  Portfolio cap: Cluster ['BRETT/USDT:USDT', 'IMX/USDT:USDT', 'TIA/USDT:USDT', 'LQTY/USDT:USDT', 'AVAX/USDT:USDT', 'SOL/USDT:USDT', 'APT/USDT:USDT', 'SUI/USDT:USDT', 'XRP/USDT:USDT'] risk capped 1722.59→933.45 (ρ≥0.7)
+    ⚠️  POSITION SIZE TOO LARGE: Current is 2.7x optimal
+
+Risk Assessment:
+  Status: 🟡 WARNING
+  Action: Re-evaluate – reward is not compensating for risk
+
+Position 6: AVAX/USDT:USDT
+----------------------------------------
+Current Status:
+  Entry: $33.972674 | Current: $33.742000 | PnL: -0.67%
+  Size: 350.0 | Notional: $11890.44 | Leverage: 20.0x
+  Liquidation Price: $23.119414
+
+Volatility Analysis:
+  Method: VOL_BLEND
+  ATR(20): $0.856572 (2.52% of price)
+  HAR-RV σ(annual): 6.9%
+  GARCH σ(annual): 75.8%
+  Vol blend (H=4h): 0.122698 abs
+
+🎯 Recommended Levels:
+  STOP LOSS: $33.550063 (-1.24% from entry)
+    💰 Optimal Risk: $144.97 (for optimal size: 343.04)
+    💰 Current Risk: $147.91 (for current size: 350.00)
+    ✅ Safe from liquidation
+  TAKE PROFIT: $33.985729 (0.04% from entry)
+    💰 Optimal Reward: $4.48
+    💰 Current Reward: $4.57
+    📊 Risk/Reward: 0.03:1
+  Scale-outs:
+    • Close 40% @ 34.606591
+    • Close 30% @ 35.240507
+    • Leave 30% runner; Trail suggestion: 32.028856
+  Professional Analysis:
+    Confidence Score: 1/5
+    Confidence Factors: Uptrend (EMA20 > EMA50), Positive momentum (RSI > 50), Volatility models disagree
     Volatility Adjustment: 1.00x
     Confidence Adjustment: 1.05x
   Risk Management:
     Risk Target: 2.25% of notional
     Stop Loss: 1.58× ATR (Professional: 2-4×)
     Take Profit: 3.15× ATR (Professional: 2.5-4.5×)
-    ⚠️  POSITION SIZE TOO LARGE: Current is 4.6x optimal
+  Portfolio cap: Cluster ['BRETT/USDT:USDT', 'IMX/USDT:USDT', 'TIA/USDT:USDT', 'LQTY/USDT:USDT', 'AVAX/USDT:USDT', 'SOL/USDT:USDT', 'APT/USDT:USDT', 'SUI/USDT:USDT', 'XRP/USDT:USDT'] risk capped 1722.59→933.45 (ρ≥0.7)
 
 Risk Assessment:
   Status: 🟡 WARNING
-  Action: Trim position size to align with risk limits
+  Action: Re-evaluate – reward is not compensating for risk
 
-Position 10: XRP/USDT:USDT
+Position 7: SOL/USDT:USDT
 ----------------------------------------
 Current Status:
-  Entry: $3.101334 | Current: $2.975200 | PnL: -4.06%
-  Size: 2320.0 | Notional: $7195.10 | Leverage: 20.0x
-  Liquidation Price: $1.144203
+  Entry: $237.770000 | Current: $237.840000 | PnL: 0.01%
+  Size: 33.0 | Notional: $7846.41 | Leverage: 20.0x
+  Liquidation Price: $125.104995
 
 Volatility Analysis:
   Method: VOL_BLEND
-  ATR(20): $0.038170 (1.23% of price)
-  HAR-RV σ(annual): 17.7%
-  GARCH σ(annual): 50.9%
-  Vol blend (H=4h): 0.016929 abs
+  ATR(20): $4.509386 (1.90% of price)
+  HAR-RV σ(annual): 39.3%
+  GARCH σ(annual): 56.4%
+  Vol blend (H=4h): 0.459960 abs
 
 🎯 Recommended Levels:
-  STOP LOSS: $2.949622 (-4.89% from entry)
-    💰 Optimal Risk: $71.95 (for optimal size: 474.26)
-    💰 Current Risk: $351.97 (for current size: 2320.00)
-    ✅ Safe from liquidation (buffer 11.90× vs ≥ 2.00×)
-  TAKE PROFIT: $3.007680 (-3.02% from entry)
-    💰 Optimal Reward: $-44.42
-    💰 Current Reward: $-217.28
-    📊 Risk/Reward: -0.62:1
+  STOP LOSS: $237.011828 (-0.32% from entry)
+    💰 Optimal Risk: $127.56 (for optimal size: 168.24)
+    💰 Current Risk: $25.02 (for current size: 33.00)
+    ✅ Safe from liquidation
+  TAKE PROFIT: $238.760191 (0.42% from entry)
+    💰 Optimal Reward: $166.59
+    💰 Current Reward: $32.68
+    📊 Risk/Reward: 1.31:1
   Scale-outs:
-    • Close 40% @ 3.328903
-    • Close 30% @ 3.556472
-    • Leave 30% runner; Trail suggestion: 2.898861
+    • Close 40% @ 238.907258
+    • Close 30% @ 240.044516
+    • Leave 30% runner; Trail suggestion: 228.821228
   Professional Analysis:
-    Confidence Score: 1/5
-    Confidence Factors: Low volatility regime
-    Volatility Adjustment: 0.80x
-    Confidence Adjustment: 1.05x
+    Confidence Score: 4/5
+    Confidence Factors: Uptrend (EMA20 > EMA50), Low volatility regime, Positive momentum (RSI > 50), Volatility models aligned
+    Volatility Adjustment: 1.00x
+    Confidence Adjustment: 1.20x
   Risk Management:
-    Risk Target: 2.25% of notional
-    Stop Loss: 1.58× ATR (Professional: 2-4×)
-    Take Profit: 3.15× ATR (Professional: 2.5-4.5×)
-    ⚠️  POSITION SIZE TOO LARGE: Current is 4.9x optimal
+    Risk Target: 3.00% of notional
+    Stop Loss: 1.80× ATR (Professional: 2-4×)
+    Take Profit: 3.60× ATR (Professional: 2.5-4.5×)
+  Portfolio cap: Cluster ['BRETT/USDT:USDT', 'IMX/USDT:USDT', 'TIA/USDT:USDT', 'LQTY/USDT:USDT', 'AVAX/USDT:USDT', 'SOL/USDT:USDT', 'APT/USDT:USDT', 'SUI/USDT:USDT', 'XRP/USDT:USDT'] risk capped 1722.59→933.45 (ρ≥0.7)
+    ℹ️  POSITION SIZE SMALL: Current is 0.2x optimal
 
 Risk Assessment:
-  Status: 🟡 WARNING
-  Action: Trim position size to align with risk limits
+  Status: 💚 PROFITABLE
+  Action: Trail stop or scale out to lock in gains
 
-Position 11: AVAX/USDT:USDT
+Position 8: APT/USDT:USDT
 ----------------------------------------
 Current Status:
-  Entry: $33.842431 | Current: $33.118000 | PnL: -2.12%
-  Size: 401.6 | Notional: $13591.12 | Leverage: 20.0x
-  Liquidation Price: $22.547948
+  Entry: $4.565880 | Current: $4.562000 | PnL: -0.08%
+  Size: 2715.78 | Notional: $12399.93 | Leverage: 20.0x
+  Liquidation Price: $3.192741
 
 Volatility Analysis:
   Method: VOL_BLEND
-  ATR(20): $0.837357 (2.47% of price)
-  HAR-RV σ(annual): 40.5%
-  GARCH σ(annual): 80.6%
-  Vol blend (H=4h): 0.429741 abs
+  ATR(20): $0.082581 (1.81% of price)
+  HAR-RV σ(annual): 11.3%
+  GARCH σ(annual): 52.8%
+  Vol blend (H=4h): 0.015028 abs
 
 🎯 Recommended Levels:
-  STOP LOSS: $32.424106 (-4.19% from entry)
-    💰 Optimal Risk: $135.91 (for optimal size: 95.83)
-    💰 Current Risk: $569.60 (for current size: 401.60)
-    ✅ Safe from liquidation (buffer 6.96× vs ≥ 2.00×)
-  TAKE PROFIT: $33.959084 (0.34% from entry)
-    💰 Optimal Reward: $11.18
-    💰 Current Reward: $46.85
-    📊 Risk/Reward: 0.08:1
+  STOP LOSS: $4.537224 (-0.63% from entry)
+    💰 Optimal Risk: $167.98 (for optimal size: 5862.17)
+    💰 Current Risk: $77.82 (for current size: 2715.78)
+    ✅ Safe from liquidation
+  TAKE PROFIT: $4.592031 (0.57% from entry)
+    💰 Optimal Reward: $153.30
+    💰 Current Reward: $71.02
+    📊 Risk/Reward: 0.91:1
   Scale-outs:
-    • Close 40% @ 35.969919
-    • Close 30% @ 38.097407
-    • Leave 30% runner; Trail suggestion: 31.443285
+    • Close 40% @ 4.608863
+    • Close 30% @ 4.651847
+    • Leave 30% runner; Trail suggestion: 4.396837
   Professional Analysis:
     Confidence Score: 2/5
-    Confidence Factors: Uptrend (EMA20 > EMA50), Volatility models aligned
-    Volatility Adjustment: 1.30x
+    Confidence Factors: Uptrend (EMA20 > EMA50), Low volatility regime, Positive momentum (RSI > 50), Volatility models disagree
+    Volatility Adjustment: 1.00x
     Confidence Adjustment: 1.10x
   Risk Management:
     Risk Target: 2.50% of notional
     Stop Loss: 1.65× ATR (Professional: 2-4×)
     Take Profit: 3.30× ATR (Professional: 2.5-4.5×)
-    ⚠️  POSITION SIZE TOO LARGE: Current is 4.2x optimal
+  Portfolio cap: Cluster ['BRETT/USDT:USDT', 'IMX/USDT:USDT', 'TIA/USDT:USDT', 'LQTY/USDT:USDT', 'AVAX/USDT:USDT', 'SOL/USDT:USDT', 'APT/USDT:USDT', 'SUI/USDT:USDT', 'XRP/USDT:USDT'] risk capped 1722.59→933.45 (ρ≥0.7)
+    ℹ️  POSITION SIZE SMALL: Current is 0.5x optimal
 
 Risk Assessment:
   Status: 🟡 WARNING
-  Action: Trim position size to align with risk limits
+  Action: Re-evaluate – reward is not compensating for risk
+
+Position 9: SUI/USDT:USDT
+----------------------------------------
+Current Status:
+  Entry: $3.764359 | Current: $3.665700 | PnL: -2.61%
+  Size: 4170.0 | Notional: $15697.38 | Leverage: 20.0x
+  Liquidation Price: $2.774248
+
+Volatility Analysis:
+  Method: VOL_BLEND
+  ATR(20): $0.079778 (2.12% of price)
+  HAR-RV σ(annual): 23.4%
+  GARCH σ(annual): 75.9%
+  Vol blend (H=4h): 0.017260 abs
+
+🎯 Recommended Levels:
+  STOP LOSS: $3.639228 (-3.32% from entry)
+    💰 Optimal Risk: $191.39 (for optimal size: 1529.52)
+    💰 Current Risk: $521.80 (for current size: 4170.00)
+    ✅ Safe from liquidation
+  TAKE PROFIT: $3.699316 (-1.73% from entry)
+    💰 Optimal Reward: $-99.48
+    💰 Current Reward: $-271.23
+    📊 Risk/Reward: -0.52:1
+  Scale-outs:
+    • Close 40% @ 3.952055
+    • Close 30% @ 4.139752
+    • Leave 30% runner; Trail suggestion: 3.506143
+  Professional Analysis:
+    Confidence Score: 1/5
+    Confidence Factors: Uptrend (EMA20 > EMA50), Positive momentum (RSI > 50), Volatility models disagree
+    Volatility Adjustment: 1.00x
+    Confidence Adjustment: 1.05x
+  Risk Management:
+    Risk Target: 2.25% of notional
+    Stop Loss: 1.58× ATR (Professional: 2-4×)
+    Take Profit: 3.15× ATR (Professional: 2.5-4.5×)
+  Portfolio cap: Cluster ['BRETT/USDT:USDT', 'IMX/USDT:USDT', 'TIA/USDT:USDT', 'LQTY/USDT:USDT', 'AVAX/USDT:USDT', 'SOL/USDT:USDT', 'APT/USDT:USDT', 'SUI/USDT:USDT', 'XRP/USDT:USDT'] risk capped 1722.59→933.45 (ρ≥0.7)
+    ⚠️  POSITION SIZE TOO LARGE: Current is 2.7x optimal
+
+Risk Assessment:
+  Status: 🟡 WARNING
+  Action: Tighten stop / reconsider thesis – drawdown beyond 2%
+
+Position 10: XRP/USDT:USDT
+----------------------------------------
+Current Status:
+  Entry: $3.101334 | Current: $2.992400 | PnL: -3.53%
+  Size: 2320.0 | Notional: $7195.10 | Leverage: 20.0x
+  Liquidation Price: $1.389053
+
+Volatility Analysis:
+  Method: VOL_BLEND
+  ATR(20): $0.042733 (1.38% of price)
+  HAR-RV σ(annual): 11.9%
+  GARCH σ(annual): 54.1%
+  Vol blend (H=4h): 0.009629 abs
+
+🎯 Recommended Levels:
+  STOP LOSS: $2.977767 (-3.98% from entry)
+    💰 Optimal Risk: $87.73 (for optimal size: 709.95)
+    💰 Current Risk: $286.68 (for current size: 2320.00)
+    ✅ Safe from liquidation
+  TAKE PROFIT: $3.010981 (-2.91% from entry)
+    💰 Optimal Reward: $-64.15
+    💰 Current Reward: $-209.62
+    📊 Risk/Reward: -0.73:1
+  Scale-outs:
+    • Close 40% @ 3.286685
+    • Close 30% @ 3.472035
+    • Leave 30% runner; Trail suggestion: 2.906934
+  Professional Analysis:
+    Confidence Score: 1/5
+    Confidence Factors: Uptrend (EMA20 > EMA50), Low volatility regime, Volatility models disagree
+    Volatility Adjustment: 1.00x
+    Confidence Adjustment: 1.05x
+  Risk Management:
+    Risk Target: 2.25% of notional
+    Stop Loss: 1.58× ATR (Professional: 2-4×)
+    Take Profit: 3.15× ATR (Professional: 2.5-4.5×)
+  Portfolio cap: Cluster ['BRETT/USDT:USDT', 'IMX/USDT:USDT', 'TIA/USDT:USDT', 'LQTY/USDT:USDT', 'AVAX/USDT:USDT', 'SOL/USDT:USDT', 'APT/USDT:USDT', 'SUI/USDT:USDT', 'XRP/USDT:USDT'] risk capped 1722.59→933.45 (ρ≥0.7)
+    ⚠️  POSITION SIZE TOO LARGE: Current is 3.3x optimal
+
+Risk Assessment:
+  Status: 🟡 WARNING
+  Action: Tighten stop / reconsider thesis – drawdown beyond 2%
 
 ================================================================================
 RECOMMENDATIONS
 ================================================================================
 ⚠️  IMMEDIATE ATTENTION REQUIRED:
-  • LQTY/USDT:USDT: Trim position size to align with risk limits
-  • W/USDT:USDT: Reduce exposure immediately – stop is too close to liquidation
-  • TIA/USDT:USDT: Trim position size to align with risk limits
-  • BRETT/USDT:USDT: Trim position size to align with risk limits
-  • IMX/USDT:USDT: Trim position size to align with risk limits
-  • LINEA/USDT:USDT: Trim position size to align with risk limits
-  • SUI/USDT:USDT: Trim position size to align with risk limits
-  • XRP/USDT:USDT: Trim position size to align with risk limits
-  • AVAX/USDT:USDT: Trim position size to align with risk limits
+  • BRETT/USDT:USDT: Reduce exposure immediately – stop is too close to liquidation
+  • IMX/USDT:USDT: Re-evaluate – reward is not compensating for risk
+  • TIA/USDT:USDT: Re-evaluate – reward is not compensating for risk
+  • LQTY/USDT:USDT: Re-evaluate – reward is not compensating for risk
+  • AVAX/USDT:USDT: Re-evaluate – reward is not compensating for risk
+  • APT/USDT:USDT: Re-evaluate – reward is not compensating for risk
+  • SUI/USDT:USDT: Tighten stop / reconsider thesis – drawdown beyond 2%
+  • XRP/USDT:USDT: Tighten stop / reconsider thesis – drawdown beyond 2%
 
 ✅ GENERAL GUIDELINES:
   1. Set all stop losses immediately to protect capital
